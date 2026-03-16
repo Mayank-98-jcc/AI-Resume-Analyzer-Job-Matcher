@@ -10,7 +10,6 @@ flowchart TD
   LoadUI --> Ready[User sees dashboard]
 
   subgraph Client["Client (Browser)"]
-    direction TD
     Ready --> UploadIntent[User clicks Upload Resume]
     UploadIntent --> SelectFile[Choose file from device]
     SelectFile --> FileCheck{File type and size valid?}
@@ -25,7 +24,6 @@ flowchart TD
   end
 
   subgraph Backend["Backend (API Server)"]
-    direction TD
     SendFile --> Receive[Receive upload request]
     Receive --> StoredFile[(Store file and metadata)]
     StoredFile --> Extract[Extract text from resume]
@@ -38,7 +36,6 @@ flowchart TD
   end
 
   subgraph AI["AI Analysis (Services)"]
-    direction TD
     AIRequest --> Analyze[Run analysis on resume text]
     Analyze --> AIStatus{AI succeeded?}
     AIStatus -->|No| AIError[Return AI error]
@@ -50,7 +47,6 @@ flowchart TD
   end
 
   subgraph Results["Results (Dashboard)"]
-    direction TD
     ATS --> Bundle[Bundle results payload]
     Skills --> Bundle
     Suggestions --> Bundle
