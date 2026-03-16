@@ -27,7 +27,39 @@ const userSchema = new mongoose.Schema({
 
   role: {
     type: String,
+    enum: ["user", "admin"],
     default: "user"
+  },
+
+  plan: {
+    type: String,
+    enum: ["free", "pro", "premium"],
+    default: "free"
+  },
+
+  resumeUsageCount: {
+    type: Number,
+    default: 0
+  },
+
+  subscriptionExpiry: {
+    type: Date,
+    default: null
+  },
+
+  resetOTP: {
+    type: String,
+    default: null
+  },
+
+  otpExpiry: {
+    type: Date,
+    default: null
+  },
+
+  resetOTPVerified: {
+    type: Boolean,
+    default: false
   }
 
 }, { timestamps: true });

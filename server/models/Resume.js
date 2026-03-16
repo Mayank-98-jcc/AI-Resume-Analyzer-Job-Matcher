@@ -9,6 +9,15 @@ const resumeSchema = new mongoose.Schema({
   fileName: {
     type: String
   },
+  fileStorageName: {
+    type: String
+  },
+  fileMime: {
+    type: String
+  },
+  fileSize: {
+    type: Number
+  },
   extractedText: {
     type: String
   },

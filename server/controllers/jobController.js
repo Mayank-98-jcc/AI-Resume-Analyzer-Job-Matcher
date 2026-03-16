@@ -7,7 +7,10 @@ exports.matchJob = async (req, res) => {
 
     const { resumeId, jobDescription } = req.body;
 
-    const resume = await Resume.findById(resumeId);
+    const resume = await Resume.findOne({
+      _id: resumeId,
+      userId: req.user._id
+    });
 
     if (!resume) {
       return res.status(404).json({ message: "Resume not found" });

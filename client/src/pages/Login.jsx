@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
 import API from "../services/api";
 import BrandMark from "../components/BrandMark";
+import { ensureGoogleIdentityInitialized, renderGoogleButton, waitForGoogleIdentity } from "../utils/googleIdentity";
 
 function Login() {
   const navigate = useNavigate();
@@ -17,6 +19,7 @@ function Login() {
 
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState("");
+  const googleButtonRef = useRef(null);
 
   const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
 
@@ -48,33 +51,76 @@ function Login() {
   }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
-    if (!window.google?.accounts?.id) return;
-
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) return;
 
-    window.google.accounts.id.initialize({
-      client_id: clientId,
-      callback: async (response) => {
-        try {
-          setGoogleLoading(true);
-          setGoogleError("");
+    let cancelled = false;
 
-          const res = await API.post("/auth/google", {
-            credential: response.credential
-          });
+    const handler = async (response) => {
+      try {
+        setGoogleLoading(true);
+        setGoogleError("");
 
-          localStorage.setItem("token", res.data.token);
-          window.location.href = "/dashboard";
-        } catch (err) {
-          const message = err?.response?.data?.message || "Google login failed";
-          setGoogleError(message);
-        } finally {
-          setGoogleLoading(false);
+        const res = await API.post("/auth/google", {
+          credential: response.credential
+        });
+
+        localStorage.setItem("token", res.data.token);
+        await redirectAfterAuth(res.data.token);
+      } catch (err) {
+        const message =
+          err?.response?.data?.message ||
+          "Google login failed. Make sure your OAuth client allows this site origin in Google Cloud Console.";
+        setGoogleError(message);
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+
+    globalThis.__resumeiq_gsi_onCredential = handler;
+
+    (async () => {
+      try {
+        await waitForGoogleIdentity({ timeoutMs: 8000 });
+        if (cancelled) return;
+
+        ensureGoogleIdentityInitialized(clientId);
+
+        renderGoogleButton(googleButtonRef.current, {
+          type: "standard",
+          theme: "outline",
+          text: "continue_with",
+          shape: "pill",
+          size: "large",
+          width: "320"
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setGoogleError(
+            "Google sign-in is not available right now. Check that your Google OAuth client allows this origin (e.g. http://localhost:5173)."
+          );
         }
       }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (globalThis.__resumeiq_gsi_onCredential === handler) {
+        globalThis.__resumeiq_gsi_onCredential = null;
+      }
+    };
+  }, [navigate]);
+
+  const redirectAfterAuth = async (token) => {
+    const decoded = jwtDecode(token);
+    const profileRes = await API.get(`/auth/profile/${decoded.id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
     });
-  }, []);
+
+    window.location.href = profileRes.data?.role === "admin" ? "/admin" : "/dashboard";
+  };
 
   const handleBlur = (field) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
@@ -97,35 +143,13 @@ function Login() {
       });
 
       localStorage.setItem("token", res.data.token);
-      window.location.href = "/dashboard";
+      await redirectAfterAuth(res.data.token);
     } catch (err) {
       const message = err?.response?.data?.message || "Login failed. Check your credentials.";
       setApiError(message);
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleGoogleAuth = () => {
-    setGoogleError("");
-
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-      setGoogleError("Google auth is not configured. Add VITE_GOOGLE_CLIENT_ID.");
-      return;
-    }
-
-    if (!window.google?.accounts?.id) {
-      setGoogleError("Google auth library not loaded yet. Try again.");
-      return;
-    }
-
-    setGoogleLoading(true);
-    window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        setGoogleLoading(false);
-      }
-    });
   };
 
   const switchToRegister = () => {
@@ -221,20 +245,17 @@ function Login() {
             {isSubmitting ? "Signing in..." : "Sign In"}
           </button>
 
-          <button
-            type="button"
-            onClick={handleGoogleAuth}
-            disabled={googleLoading}
-            className="google-auth-btn w-full rounded-xl px-4 py-3 font-semibold"
-          >
-            <svg className="google-logo-svg" viewBox="0 0 48 48" aria-hidden="true">
-              <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.655 32.657 29.226 36 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.153 7.958 3.042l5.657-5.657C34.046 6.053 29.27 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
-              <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.153 7.958 3.042l5.657-5.657C34.046 6.053 29.27 4 24 4c-7.682 0-14.347 4.337-17.694 10.691z"/>
-              <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.145 35.091 26.715 36 24 36c-5.205 0-9.62-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
-              <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.044 12.044 0 01-4.084 5.571l.003-.002 6.19 5.238C37.004 39.169 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
-            </svg>
-            {googleLoading ? "Connecting..." : "Continue with Google"}
-          </button>
+          <div className="flex justify-center">
+            <div ref={googleButtonRef} />
+          </div>
+          {!import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+            <p className="text-sm text-amber-200 text-center">
+              Google auth is not configured. Add `VITE_GOOGLE_CLIENT_ID`.
+            </p>
+          )}
+          {googleLoading && (
+            <p className="text-sm text-slate-300 text-center">Connecting to Google...</p>
+          )}
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-300">

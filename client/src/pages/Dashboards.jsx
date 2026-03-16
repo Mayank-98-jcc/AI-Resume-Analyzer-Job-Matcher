@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { Lock, Unlock } from "lucide-react";
+import { motion as Motion } from "framer-motion";
+import { Copy, Crown, Lock, Sparkles, Unlock } from "lucide-react";
 import API from "../services/api";
 import { CircularProgressbar } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
@@ -34,7 +34,17 @@ function Dashboard() {
   const [result, setResult] = useState(null);
   const [uploadError, setUploadError] = useState("");
   const [profileName, setProfileName] = useState("");
+  const [subscription, setSubscription] = useState({
+    plan: "free",
+    resumeUsageCount: 0,
+    subscriptionExpiry: null,
+    hasProAccess: false,
+    hasPremiumAccess: false,
+    limits: { resumeAnalyses: 3 }
+  });
   const [history, setHistory] = useState([]);
+  const [loadedSuggestions, setLoadedSuggestions] = useState([]);
+  const [loadedSuggestionProgress, setLoadedSuggestionProgress] = useState(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const [suggestionError, setSuggestionError] = useState("");
   const [sectionAnalysis, setSectionAnalysis] = useState(null);
@@ -47,13 +57,27 @@ function Dashboard() {
   const [careerLoading, setCareerLoading] = useState(false);
   const [careerError, setCareerError] = useState("");
   const [careerSuggestions, setCareerSuggestions] = useState([]);
+  const [rewriteLoading, setRewriteLoading] = useState(false);
+  const [rewriteError, setRewriteError] = useState("");
+  const [rewrittenResume, setRewrittenResume] = useState("");
+  const [copyRewriteSuccess, setCopyRewriteSuccess] = useState(false);
   const [strengthData, setStrengthData] = useState(null);
   const [rankPercentile, setRankPercentile] = useState(null);
   const [animatedRankPercentile, setAnimatedRankPercentile] = useState(0);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [showUnlockAnimation, setShowUnlockAnimation] = useState(false);
+  const [upgradePrompt, setUpgradePrompt] = useState({
+    open: false,
+    message: "",
+    requiredPlan: "pro"
+  });
   const previousRankRef = useRef(0);
 
+  const currentPlan = subscription?.plan || "free";
+  const hasProAccess = Boolean(subscription?.hasProAccess);
+  const hasPremiumAccess = Boolean(subscription?.hasPremiumAccess);
+  const resumeLimit = subscription?.limits?.resumeAnalyses ?? 3;
+  const usageCount = subscription?.resumeUsageCount ?? 0;
   const latestScore = result?.atsScore ?? "-";
   const skillsFound = result?.skills?.length ?? "-";
   const latestResume = history[0] || null;
@@ -63,14 +87,8 @@ function Dashboard() {
     latestResume?.strengthMeter ||
     strengthData ||
     null;
-  const activeSuggestions =
-    result?.suggestions?.length
-      ? result.suggestions
-      : latestResume?.suggestions || [];
-  const activeSuggestionProgress =
-    result?.suggestionProgress ||
-    latestResume?.suggestionProgress ||
-    null;
+  const activeSuggestions = loadedSuggestions;
+  const activeSuggestionProgress = loadedSuggestionProgress;
 
   const strengthMetrics = [
     { key: "formatting", label: "Formatting Score", color: "bg-cyan-400" },
@@ -93,6 +111,39 @@ function Dashboard() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
   const displayName = profileName || "there";
+
+  const openUpgradePrompt = (message, requiredPlan = "pro") => {
+    setUpgradePrompt({
+      open: true,
+      message,
+      requiredPlan
+    });
+  };
+
+  const openBillingPage = (requiredPlan = "pro") => {
+    setUpgradePrompt({
+      open: false,
+      message: "",
+      requiredPlan
+    });
+    navigate("/billing", {
+      state: {
+        plan: requiredPlan
+      }
+    });
+  };
+
+  const handlePlanAccessError = (error, fallbackMessage) => {
+    const apiMessage = error?.response?.data?.message || error?.response?.data?.error || fallbackMessage;
+    const requiredPlan = error?.response?.data?.requiredPlan || "pro";
+
+    if (error?.response?.data?.code === "PLAN_UPGRADE_REQUIRED") {
+      openUpgradePrompt(apiMessage, requiredPlan);
+      return true;
+    }
+
+    return false;
+  };
 
   const getResumeRanking = async (atsScoreValue) => {
     const numericAtsScore = Number(atsScoreValue);
@@ -132,15 +183,34 @@ function Dashboard() {
       setResult(res.data);
       setResumeSummary([]);
       setSummaryCertifications([]);
+      setLoadedSuggestions([]);
+      setLoadedSuggestionProgress(null);
       setSummaryError("");
       setCareerSuggestions([]);
       setCareerError("");
+      setRewrittenResume("");
+      setRewriteError("");
+      setCopyRewriteSuccess(false);
       setIsUnlocked(true);
       setShowUnlockAnimation(true);
+      if (res.data?.usage) {
+        setSubscription((prev) => ({
+          ...prev,
+          resumeUsageCount: res.data.usage.resumeUsageCount,
+          limits: {
+            ...prev.limits,
+            resumeAnalyses: res.data.usage.resumeLimit
+          }
+        }));
+      }
       await getResumeRanking(res.data?.atsScore);
       getHistory();
     } catch (error) {
       console.error("Upload error:", error);
+      if (handlePlanAccessError(error, "Upgrade to Pro to analyze more resumes")) {
+        setUploadError(error?.response?.data?.message || "Upgrade to Pro to analyze more resumes");
+        return;
+      }
       const apiError = error?.response?.data?.error || "";
       const isInvalidResume = error?.response?.data?.code === "INVALID_RESUME";
       setUploadError(
@@ -199,18 +269,23 @@ function Dashboard() {
       });
 
       const suggestions = res.data?.suggestions || [];
+      const suggestionProgress = res.data?.suggestionProgress || null;
+
+      setLoadedSuggestions(suggestions);
+      setLoadedSuggestionProgress(suggestionProgress);
 
       setResult((prev) => {
         if (!prev || prev.resumeId !== activeResumeId) return prev;
         return {
           ...prev,
-          suggestions
+          suggestions,
+          suggestionProgress
         };
       });
 
       setHistory((prev) =>
         prev.map((item) =>
-          item._id === activeResumeId ? { ...item, suggestions } : item
+          item._id === activeResumeId ? { ...item, suggestions, suggestionProgress } : item
         )
       );
     } catch (error) {
@@ -222,6 +297,11 @@ function Dashboard() {
   };
 
   const generateSummary = async () => {
+    if (!hasProAccess) {
+      openUpgradePrompt("Upgrade your plan to access AI Resume Summary", "pro");
+      return;
+    }
+
     const sourceText =
       result?.resumeText ||
       latestResume?.extractedText ||
@@ -255,6 +335,10 @@ function Dashboard() {
       );
     } catch (error) {
       console.error("Summary generator error:", error);
+      if (handlePlanAccessError(error, "Upgrade your plan to access AI Resume Summary")) {
+        setSummaryError(error?.response?.data?.message || "Upgrade your plan to access AI Resume Summary");
+        return;
+      }
       setSummaryError("Unable to generate summary right now.");
       setResumeSummary([]);
       setSummaryCertifications([]);
@@ -264,6 +348,11 @@ function Dashboard() {
   };
 
   const generateCareerSuggestions = async () => {
+    if (!hasProAccess) {
+      openUpgradePrompt("Upgrade your plan to access AI Career Suggestions", "pro");
+      return;
+    }
+
     const sourceSkills =
       result?.skills ||
       latestResume?.skills ||
@@ -286,12 +375,92 @@ function Dashboard() {
       setCareerSuggestions(Array.isArray(res.data?.careers) ? res.data.careers : []);
     } catch (error) {
       console.error("Career suggestions error:", error);
+      if (handlePlanAccessError(error, "Upgrade your plan to access AI Career Suggestions")) {
+        setCareerError(error?.response?.data?.message || "Upgrade your plan to access AI Career Suggestions");
+        return;
+      }
       setCareerError("Unable to generate career suggestions right now.");
       setCareerSuggestions([]);
     } finally {
       setCareerLoading(false);
     }
   };
+
+  const handleRewriteResume = async () => {
+    if (!hasPremiumAccess) {
+      openUpgradePrompt("Upgrade to Premium to access AI Resume Rewrite.", "premium");
+      return;
+    }
+
+    const sourceText =
+      result?.resumeText ||
+      latestResume?.extractedText ||
+      "";
+
+    if (!sourceText.trim()) {
+      setRewriteError("No resume text available to rewrite.");
+      setRewrittenResume("");
+      setCopyRewriteSuccess(false);
+      return;
+    }
+
+    try {
+      setRewriteLoading(true);
+      setRewriteError("");
+      setCopyRewriteSuccess(false);
+
+      const res = await API.post("/resume/rewrite", {
+        resumeText: sourceText
+      });
+
+      setRewrittenResume(String(res.data?.rewrittenResume || "").trim());
+    } catch (error) {
+      console.error("Resume rewrite error:", error);
+      if (handlePlanAccessError(error, "Upgrade to Premium to access AI Resume Rewrite.")) {
+        setRewriteError(error?.response?.data?.message || "Upgrade to Premium to access AI Resume Rewrite.");
+        return;
+      }
+      setRewriteError("Unable to rewrite resume right now.");
+      setRewrittenResume("");
+    } finally {
+      setRewriteLoading(false);
+    }
+  };
+
+  const copyRewrittenResume = async () => {
+    if (!rewrittenResume) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(rewrittenResume);
+      setCopyRewriteSuccess(true);
+    } catch (error) {
+      console.error("Copy rewrite error:", error);
+      setRewriteError("Unable to copy rewritten resume.");
+      setCopyRewriteSuccess(false);
+    }
+  };
+
+  useEffect(() => {
+    setResult(null);
+    setHistory([]);
+    setResumeSummary([]);
+    setSummaryCertifications([]);
+    setCareerSuggestions([]);
+    setLoadedSuggestions([]);
+    setLoadedSuggestionProgress(null);
+    setStrengthData(null);
+    setSectionAnalysis(null);
+    setSuggestionError("");
+    setSummaryError("");
+    setCareerError("");
+    setSectionError("");
+    setRankPercentile(null);
+    setAnimatedRankPercentile(0);
+    setIsUnlocked(false);
+    previousRankRef.current = 0;
+  }, [userId]);
 
   useEffect(() => {
     if (userId) {
@@ -309,6 +478,14 @@ function Dashboard() {
       try {
         const res = await API.get(`/auth/profile/${userId}`);
         setProfileName(res.data?.name || "");
+        setSubscription({
+          plan: res.data?.plan || "free",
+          resumeUsageCount: res.data?.resumeUsageCount || 0,
+          subscriptionExpiry: res.data?.subscriptionExpiry || null,
+          hasProAccess: Boolean(res.data?.hasProAccess),
+          hasPremiumAccess: Boolean(res.data?.hasPremiumAccess),
+          limits: res.data?.limits || { resumeAnalyses: 3 }
+        });
       } catch (error) {
         console.error("Profile fetch error:", error);
         setProfileName("");
@@ -411,6 +588,15 @@ function Dashboard() {
     setSummaryError("");
     setCareerSuggestions([]);
     setCareerError("");
+    setLoadedSuggestions([]);
+    setLoadedSuggestionProgress(null);
+    setRewrittenResume("");
+    setRewriteError("");
+    setCopyRewriteSuccess(false);
+  }, [activeResumeId]);
+
+  useEffect(() => {
+    setIsUnlocked(Boolean(activeResumeId));
   }, [activeResumeId]);
 
   useEffect(() => {
@@ -422,6 +608,16 @@ function Dashboard() {
 
     return () => window.clearTimeout(timer);
   }, [showUnlockAnimation]);
+
+  useEffect(() => {
+    if (!copyRewriteSuccess) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setCopyRewriteSuccess(false);
+    }, 1800);
+
+    return () => window.clearTimeout(timer);
+  }, [copyRewriteSuccess]);
 
   return (
     <div className="dashboard-shell min-h-screen text-white">
@@ -436,22 +632,40 @@ function Dashboard() {
           userId={userId}
         />
 
-        <motion.main
+        <Motion.main
           className="flex-1 overflow-y-auto p-6 md:p-8 lg:p-10"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
           <section className="rounded-xl border border-white/10 bg-white/5 p-6 shadow-lg backdrop-blur-xl">
-            <h1 className="text-3xl font-bold tracking-tight text-white">
-              {greeting} {displayName} <span className="dashboard-wave-hand">👋</span>
-            </h1>
-            <p className="mt-2 text-sm text-slate-400">
-              Ready to optimize your resume today?
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-white">
+                  {greeting} {displayName} <span className="dashboard-wave-hand">👋</span>
+                </h1>
+                <p className="mt-2 text-sm text-slate-400">
+                  Ready to optimize your resume today?
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-100">
+                  Plan: {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}
+                </div>
+                <button
+                  type="button"
+                  onClick={openBillingPage}
+                  className="dashboard-btn-secondary inline-flex items-center gap-2"
+                >
+                  <Crown size={16} />
+                  {currentPlan === "free" ? "Upgrade Plan" : "Manage Plan"}
+                </button>
+              </div>
+            </div>
           </section>
 
-          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-4">
             <div className="dashboard-stat-card">
               <p className="dashboard-stat-label">Total Resumes</p>
               <p className="dashboard-stat-value">{history.length}</p>
@@ -464,7 +678,38 @@ function Dashboard() {
               <p className="dashboard-stat-label">Skills Found</p>
               <p className="dashboard-stat-value">{skillsFound}</p>
             </div>
+            <div className="dashboard-stat-card">
+              <p className="dashboard-stat-label">Resume Usage</p>
+              <p className="dashboard-stat-value">
+                {currentPlan === "free" ? `${usageCount} / ${resumeLimit}` : "Unlimited"}
+              </p>
+            </div>
           </div>
+
+          <section className={`${glassCardClass} mt-8`}>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">Subscription</h2>
+                <p className="mt-1 text-sm text-slate-300">
+                  {currentPlan === "free"
+                    ? `You have used ${usageCount} of ${resumeLimit} free resume analyses.`
+                    : `Your ${currentPlan} plan is active${subscription?.subscriptionExpiry ? ` until ${new Date(subscription.subscriptionExpiry).toLocaleDateString()}` : ""}.`}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${hasProAccess ? "bg-emerald-500/15 text-emerald-200" : "bg-slate-800 text-slate-300"}`}>
+                  AI Summary {hasProAccess ? "Unlocked" : "Locked"}
+                </span>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${hasProAccess ? "bg-emerald-500/15 text-emerald-200" : "bg-slate-800 text-slate-300"}`}>
+                  Career Suggestions {hasProAccess ? "Unlocked" : "Locked"}
+                </span>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${hasPremiumAccess ? "bg-emerald-500/15 text-emerald-200" : "bg-slate-800 text-slate-300"}`}>
+                  Premium Tools {hasPremiumAccess ? "Unlocked" : "Locked"}
+                </span>
+              </div>
+            </div>
+          </section>
 
           <section id="dashboard-upload-section" className={`${glassCardClass} mt-8 scroll-mt-24`}>
             <h2 className="text-xl font-semibold">Upload Resume</h2>
@@ -696,7 +941,19 @@ function Dashboard() {
 
               <section id="dashboard-summary-section" className={`${glassCardClass} mt-8 scroll-mt-24`}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-xl font-semibold">AI Resume Summary</h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-semibold">AI Resume Summary</h2>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                        hasProAccess
+                          ? "bg-emerald-500/15 text-emerald-200"
+                          : "bg-amber-500/15 text-amber-200"
+                      }`}
+                    >
+                      {hasProAccess ? <Unlock size={14} /> : <Lock size={14} />}
+                      {hasProAccess ? "Unlocked" : "Pro"}
+                    </span>
+                  </div>
                   <button
                     onClick={generateSummary}
                     className="dashboard-btn-secondary"
@@ -709,6 +966,13 @@ function Dashboard() {
                 {summaryError && (
                   <p className="mt-3 rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
                     {summaryError}
+                  </p>
+                )}
+
+                {!hasProAccess && (
+                  <p className="mt-4 inline-flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                    <Lock size={15} />
+                    Upgrade to Pro to unlock AI Resume Summary
                   </p>
                 )}
 
@@ -728,7 +992,7 @@ function Dashboard() {
 
                         <div className="grid grid-cols-2 gap-4">
                           {summaryCertifications.map((cert, index) => (
-                            <motion.div
+                            <Motion.div
                               key={`${cert}-${index}`}
                               whileHover={{ scale: 1.08 }}
                               whileTap={{ scale: 0.95 }}
@@ -737,7 +1001,7 @@ function Dashboard() {
                               <p className="text-sm text-gray-200">
                                 {cert}
                               </p>
-                            </motion.div>
+                            </Motion.div>
                           ))}
                         </div>
                       </>
@@ -752,7 +1016,19 @@ function Dashboard() {
 
               <section className={`${glassCardClass} mt-8`}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-xl font-semibold">AI Career Suggestions</h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-semibold">AI Career Suggestions</h2>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                        hasProAccess
+                          ? "bg-emerald-500/15 text-emerald-200"
+                          : "bg-amber-500/15 text-amber-200"
+                      }`}
+                    >
+                      {hasProAccess ? <Unlock size={14} /> : <Lock size={14} />}
+                      {hasProAccess ? "Unlocked" : "Pro"}
+                    </span>
+                  </div>
                   <button
                     onClick={generateCareerSuggestions}
                     className="dashboard-btn-secondary"
@@ -765,6 +1041,13 @@ function Dashboard() {
                 {careerError && (
                   <p className="mt-3 rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
                     {careerError}
+                  </p>
+                )}
+
+                {!hasProAccess && (
+                  <p className="mt-4 inline-flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                    <Lock size={15} />
+                    Upgrade to Pro to unlock AI Career Suggestions
                   </p>
                 )}
 
@@ -782,6 +1065,72 @@ function Dashboard() {
                 ) : (
                   <p className="mt-4 text-sm text-slate-300">
                     Generate career suggestions based on your extracted skills.
+                  </p>
+                )}
+              </section>
+
+              <section className={`${glassCardClass} mt-8`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-semibold">AI Resume Rewrite</h2>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                        hasPremiumAccess
+                          ? "bg-emerald-500/15 text-emerald-200"
+                          : "bg-amber-500/15 text-amber-200"
+                      }`}
+                    >
+                      {hasPremiumAccess ? <Unlock size={14} /> : <Lock size={14} />}
+                      {hasPremiumAccess ? "Unlocked" : "Premium"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleRewriteResume}
+                    className="dashboard-btn-secondary"
+                    disabled={rewriteLoading || !isUnlocked}
+                  >
+                    {rewriteLoading ? "Rewriting..." : "Rewrite Resume"}
+                  </button>
+                </div>
+
+                <p className="mt-1 text-sm text-slate-300">
+                  Improve your resume using AI.
+                </p>
+
+                {rewriteError && (
+                  <p className="mt-3 rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+                    {rewriteError}
+                  </p>
+                )}
+
+                {!hasPremiumAccess && (
+                  <p className="mt-4 inline-flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                    <Lock size={15} />
+                    Upgrade to Premium to access AI Resume Rewrite.
+                  </p>
+                )}
+
+                {rewrittenResume ? (
+                  <div className="mt-4 rounded-xl border border-cyan-300/20 bg-slate-900/45 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-lg font-semibold text-white">Improved Resume</h3>
+                      <button
+                        type="button"
+                        onClick={copyRewrittenResume}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10"
+                      >
+                        <Copy size={15} />
+                        {copyRewriteSuccess ? "Copied" : "Copy"}
+                      </button>
+                    </div>
+
+                    <pre className="mt-4 whitespace-pre-wrap break-words font-sans text-sm leading-7 text-slate-100">
+                      {rewrittenResume}
+                    </pre>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-slate-300">
+                    Generate a more professional, ATS-optimized rewrite of your uploaded resume content.
                   </p>
                 )}
               </section>
@@ -848,7 +1197,7 @@ function Dashboard() {
             {(!isUnlocked || showUnlockAnimation) && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="flex flex-col items-center rounded-xl bg-black/50 p-6 backdrop-blur-md">
-                  <motion.button
+                  <Motion.button
                     type="button"
                     className="dashboard-lock-button"
                     initial={{ scale: 1 }}
@@ -866,7 +1215,7 @@ function Dashboard() {
                     ) : (
                       <Lock size={40} className="text-white" />
                     )}
-                  </motion.button>
+                  </Motion.button>
 
                   {!isUnlocked && (
                     <p className="mt-2 text-center text-sm text-gray-300">
@@ -877,8 +1226,55 @@ function Dashboard() {
               </div>
             )}
           </div>
-        </motion.main>
+        </Motion.main>
       </div>
+
+      {upgradePrompt.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/95 p-6 shadow-2xl">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-cyan-400/20 bg-slate-900/80 shadow-lg shadow-cyan-950/30">
+                <img src="/image1.png" alt="ResumeIQ logo" className="h-full w-full object-cover" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold tracking-wide text-slate-100">
+                  Resume<span className="bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400 bg-clip-text text-transparent">IQ</span>
+                </p>
+                <p className="text-sm text-slate-400">Premium feature access</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-cyan-400/10 p-3 text-cyan-200">
+                <Sparkles size={20} />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-white">Feature Locked</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-300">{upgradePrompt.message}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setUpgradePrompt({ open: false, message: "", requiredPlan: "pro" })}
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+              >
+                Maybe Later
+              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                  openBillingPage(upgradePrompt.requiredPlan);
+                  }}
+                  className="dashboard-btn-primary flex-1 justify-center"
+                >
+                Upgrade Plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

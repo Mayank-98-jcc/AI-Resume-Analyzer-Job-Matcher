@@ -7,7 +7,11 @@ const { evaluateSuggestionProgress } = require("../utils/generateSuggestions");
 const analyzeResumeSections = require("../utils/analyzeSections");
 const calculateResumeStrength = require("../utils/calculateResumeStrength");
 const extractResumeTextFromUpload = require("../utils/extractResumeText");
-const generateSummaryAI = require("../utils/geminiService");
+const { logActivity } = require("../utils/activityLogger");
+const {
+  generateSummary: generateSummaryAI,
+  rewriteResumeWithGemini
+} = require("../utils/geminiService");
 
 function safeUnlink(filePath = "") {
   if (!filePath) return;
@@ -306,7 +310,7 @@ exports.uploadResume = async (req, res) => {
       fallbackAtsScore: atsData.score
     });
     const previousResume = await Resume.findOne({
-      userId: req.body.userId
+      userId: req.user._id
     }).sort({ uploadedAt: -1 });
 
     const suggestionProgress =
@@ -323,8 +327,11 @@ exports.uploadResume = async (req, res) => {
         : undefined;
 
     const resume = new Resume({
-      userId: req.body.userId,
+      userId: req.user._id,
       fileName: req.file.originalname,
+      fileStorageName: req.file.filename,
+      fileMime: req.file.mimetype,
+      fileSize: req.file.size,
       extractedText: resumeText,
       skills,
       atsScore: atsData.score,
@@ -335,7 +342,17 @@ exports.uploadResume = async (req, res) => {
     });
 
     await resume.save();
-    safeUnlink(filePath);
+
+    await logActivity({
+      type: "resume_uploaded",
+      userId: req.user?._id,
+      description: `${req.user?.name || req.user?.email || "A user"} uploaded a resume`
+    });
+
+    if (req.user.plan === "free") {
+      req.user.resumeUsageCount += 1;
+      await req.user.save();
+    }
 
     res.json({
       message: "Resume analyzed successfully",
@@ -347,6 +364,11 @@ exports.uploadResume = async (req, res) => {
       strengthMeter,
       suggestions,
       suggestionProgress: resume.suggestionProgress || null,
+      usage: {
+        plan: req.user.plan,
+        resumeUsageCount: req.user.resumeUsageCount,
+        resumeLimit: 3
+      },
       textPreview: resumeText.substring(0, 500)
     });
   } catch (error) {
@@ -374,7 +396,7 @@ exports.uploadResume = async (req, res) => {
 exports.getResumeHistory = async (req, res) => {
   try {
     const resumes = await Resume.find({
-      userId: req.params.userId
+      userId: req.user._id
     }).sort({ uploadedAt: -1 });
 
     res.json(resumes);
@@ -395,7 +417,10 @@ exports.getResumeSuggestions = async (req, res) => {
       });
     }
 
-    const resume = await Resume.findById(resumeId);
+    const resume = await Resume.findOne({
+      _id: resumeId,
+      userId: req.user._id
+    });
 
     if (!resume) {
       return res.status(404).json({
@@ -436,7 +461,10 @@ exports.analyzeResumeSections = async (req, res) => {
       });
     }
 
-    const resume = await Resume.findById(resumeId);
+    const resume = await Resume.findOne({
+      _id: resumeId,
+      userId: req.user._id
+    });
 
     if (!resume) {
       return res.status(404).json({
@@ -466,7 +494,10 @@ exports.getResumeStrengthMeter = async (req, res) => {
       });
     }
 
-    const resume = await Resume.findById(resumeId);
+    const resume = await Resume.findOne({
+      _id: resumeId,
+      userId: req.user._id
+    });
 
     if (!resume) {
       return res.status(404).json({
@@ -543,11 +574,41 @@ exports.generateSummary = async (req, res) => {
       summary,
       certifications: fallbackSummary.certifications
     });
+
+    await logActivity({
+      type: "ai_analysis_generated",
+      userId: req.user?._id,
+      description: `${req.user?.name || req.user?.email || "A user"} generated an AI summary`
+    });
   } catch (error) {
     console.error("SUMMARY ERROR:", error.message);
 
     res.status(500).json({
       error: error.message || "Failed to generate summary"
+    });
+  }
+};
+
+exports.rewriteResume = async (req, res) => {
+  try {
+    const { resumeText } = req.body;
+
+    if (!String(resumeText || "").trim()) {
+      return res.status(400).json({
+        error: "Resume text missing"
+      });
+    }
+
+    const rewrittenResume = await rewriteResumeWithGemini(String(resumeText).trim());
+
+    return res.json({
+      rewrittenResume
+    });
+  } catch (error) {
+    console.error("RESUME REWRITE ERROR:", error.message);
+
+    return res.status(500).json({
+      error: error.message || "Failed to rewrite resume"
     });
   }
 };

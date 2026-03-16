@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 
 const upload = require("../middleware/uploadMiddleware");
+const { requireAuth } = require("../middleware/authMiddleware");
+const { checkPremiumAccess, checkProAccess, checkResumeLimit } = require("../middleware/planCheck");
 
 const {
   uploadResume,
@@ -11,7 +13,8 @@ const {
   getResumeStrengthMeter,
   getResumeRanking,
   generateSummary,
-  getCareerSuggestions
+  getCareerSuggestions,
+  rewriteResume
 } = require("../controllers/resumeController");
 
 const {
@@ -36,6 +39,8 @@ const handleResumeUpload = (req, res, next) => {
 // ==========================
 router.post(
   "/upload",
+  requireAuth,
+  checkResumeLimit,
   handleResumeUpload,
   uploadResume
 );
@@ -46,6 +51,7 @@ router.post(
 // ==========================
 router.get(
   "/history/:userId",
+  requireAuth,
   getResumeHistory
 );
 
@@ -55,6 +61,8 @@ router.get(
 // ==========================
 router.post(
   "/match-job",
+  requireAuth,
+  checkPremiumAccess,
   matchJob
 );
 
@@ -64,6 +72,8 @@ router.post(
 // ==========================
 router.post(
   "/highlight",
+  requireAuth,
+  checkPremiumAccess,
   highlightKeywords
 );
 
@@ -72,6 +82,7 @@ router.post(
 // ==========================
 router.post(
   "/suggestions",
+  requireAuth,
   getResumeSuggestions
 );
 
@@ -80,6 +91,7 @@ router.post(
 // ==========================
 router.post(
   "/analyze-sections",
+  requireAuth,
   analyzeResumeSections
 );
 
@@ -88,6 +100,7 @@ router.post(
 // ==========================
 router.post(
   "/strength-meter",
+  requireAuth,
   getResumeStrengthMeter
 );
 
@@ -104,6 +117,8 @@ router.post(
 // ==========================
 router.post(
   "/generate-summary",
+  requireAuth,
+  checkProAccess,
   generateSummary
 );
 
@@ -112,7 +127,19 @@ router.post(
 // ==========================
 router.post(
   "/career-suggestions",
+  requireAuth,
+  checkProAccess,
   getCareerSuggestions
+);
+
+// ==========================
+// AI Resume Rewrite
+// ==========================
+router.post(
+  "/rewrite",
+  requireAuth,
+  checkPremiumAccess,
+  rewriteResume
 );
 
 module.exports = router;

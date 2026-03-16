@@ -1,29 +1,17 @@
 const axios = require("axios");
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const SUMMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const REWRITE_MODEL = "gemini-1.5-flash";
 
-async function generateSummary(resumeText) {
+async function generateGeminiText({ model, prompt }) {
   if (!GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not configured");
   }
 
-  const prompt = `
-You are an AI resume analyzer.
-
-Read the resume and generate a professional summary.
-
-Resume:
-${resumeText}
-
-Return:
-- 1 professional headline
-- 3 bullet points
-`;
-
   try {
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         contents: [
           {
@@ -51,4 +39,61 @@ Return:
   }
 }
 
-module.exports = generateSummary;
+async function generateSummary(resumeText) {
+  const prompt = `
+You are an AI resume analyzer.
+
+Read the resume and generate a professional summary.
+
+Resume:
+${resumeText}
+
+Return:
+- 1 professional headline
+- 3 bullet points
+`;
+
+  return generateGeminiText({
+    model: SUMMARY_MODEL,
+    prompt
+  });
+}
+
+async function rewriteResumeWithGemini(resumeText) {
+  const prompt = `You are a professional resume writer.
+
+Rewrite the following resume content to improve clarity,
+professional tone and ATS optimization.
+
+Rules:
+
+- Do NOT invent new skills or experience
+- Keep the same meaning
+- Use strong action verbs
+- Make bullet points impactful
+- Keep it concise
+
+Return result in structured format.
+
+FORMAT:
+
+Professional Summary
+
+Improved Bullet Points
+
+Skills Section
+
+Resume Content:
+
+${resumeText}`;
+
+  return generateGeminiText({
+    model: REWRITE_MODEL,
+    prompt
+  });
+}
+
+module.exports = {
+  generateSummary,
+  rewriteResumeWithGemini
+};

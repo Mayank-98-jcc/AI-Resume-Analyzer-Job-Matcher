@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion as Motion } from "framer-motion";
 import {
   BriefcaseBusiness,
+  Crown,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   History,
   Home,
   LogOut,
@@ -17,13 +20,16 @@ const navItems = [
   { key: "upload", label: "Upload Resume", icon: Upload, path: "/dashboard" },
   { key: "summary", label: "AI Resume Summary", icon: ScrollText, path: "/dashboard" },
   { key: "jobMatch", label: "Job Matcher", icon: BriefcaseBusiness, path: "/job-match" },
+  { key: "billing", label: "Billing", icon: Crown, path: "/billing" },
   { key: "history", label: "Resume History", icon: History, path: "/history", offsetTop: true }
 ];
 
 function DashboardSidebar({ activeItem, navigate, onLogout, userId }) {
   const [profile, setProfile] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const profileMenuRef = useRef(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -56,6 +62,27 @@ function DashboardSidebar({ activeItem, navigate, onLogout, userId }) {
       .map((part) => part[0]?.toUpperCase() || "")
       .join("") || fallback;
   }, [profile]);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+
+    const onPointerDown = (event) => {
+      if (!profileMenuRef.current) return;
+      if (profileMenuRef.current.contains(event.target)) return;
+      setProfileMenuOpen(false);
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setProfileMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [profileMenuOpen]);
 
   const handleNavigation = (item) => {
     if (item.key === "upload") {
@@ -121,33 +148,76 @@ function DashboardSidebar({ activeItem, navigate, onLogout, userId }) {
           </button>
         </div>
 
-        <div className="mt-5 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
-          <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300 via-blue-500 to-indigo-500 text-sm font-black text-slate-950 shadow-lg shadow-blue-950/40">
-              {initials}
-            </div>
+        <div ref={profileMenuRef} className="relative mt-5">
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
+            <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-300 via-blue-500 to-indigo-500 text-sm font-black text-slate-950 shadow-lg shadow-blue-950/40">
+                {initials}
+              </div>
 
-            <div
-              className={`min-w-0 transition-all duration-300 ${
-                collapsed ? "max-w-0 opacity-0" : "max-w-[150px] opacity-100"
-              }`}
-            >
-              <p className="truncate text-sm font-semibold text-slate-100">
-                {profile?.name || "Your Profile"}
-              </p>
-              <p className="truncate text-xs text-slate-400">
-                {profile?.email || (
-                  <>
-                    Signed in to Resume<span className="bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400 bg-clip-text text-transparent">IQ</span>
-                  </>
-                )}
-              </p>
-            </div>
+              <div
+                className={`min-w-0 transition-all duration-300 ${
+                  collapsed ? "max-w-0 opacity-0" : "max-w-[150px] opacity-100"
+                }`}
+              >
+                <p className="truncate text-sm font-semibold text-slate-100">
+                  {profile?.name || "Your Profile"}
+                </p>
+              </div>
 
-            {!collapsed && (
-              <UserCircle2 size={18} className="ml-auto shrink-0 text-cyan-300/80" />
-            )}
+              {!collapsed && (
+                <button
+                  type="button"
+                  onClick={() => setProfileMenuOpen((prev) => !prev)}
+                  aria-haspopup="menu"
+                  aria-expanded={profileMenuOpen}
+                  className="ml-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/25 text-cyan-200/80 transition hover:bg-white/10 hover:text-cyan-100"
+                >
+                  <Motion.span
+                    animate={{ rotate: profileMenuOpen ? 180 : 0 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                  >
+                    <ChevronDown size={18} />
+                  </Motion.span>
+                </button>
+              )}
+            </div>
           </div>
+
+          <AnimatePresence>
+            {profileMenuOpen && !collapsed ? (
+              <Motion.div
+                key="user-profile-menu"
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                transition={{ duration: 0.16, ease: "easeOut" }}
+                role="menu"
+                className="absolute left-0 right-0 top-full z-50 mt-3 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 shadow-[0_28px_80px_rgba(2,6,23,0.65)] backdrop-blur-xl"
+              >
+                <div className="border-b border-white/10 px-5 py-4">
+                  <p className="text-sm font-semibold text-white">{profile?.name || "User"}</p>
+                </div>
+
+                <div className="p-2">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      setShowLogoutConfirm(true);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/10"
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-400/10 text-rose-200">
+                      <LogOut size={18} />
+                    </span>
+                    Logout
+                  </button>
+                </div>
+              </Motion.div>
+            ) : null}
+          </AnimatePresence>
         </div>
 
         <div className="mt-6">
@@ -167,7 +237,9 @@ function DashboardSidebar({ activeItem, navigate, onLogout, userId }) {
                   key={item.key}
                   type="button"
                   onClick={() => handleNavigation(item)}
-                  className={`group flex w-full transform-gpu items-center rounded-2xl px-3 py-3 text-sm transition-all duration-200 hover:scale-[1.05] hover:bg-blue-500/10 ${
+                  title={collapsed ? item.label : undefined}
+                  aria-label={collapsed ? item.label : undefined}
+                  className={`group relative flex w-full transform-gpu items-center rounded-2xl px-3 py-3 text-sm transition-all duration-200 hover:scale-[1.05] hover:bg-blue-500/10 ${
                     item.offsetTop ? "mt-4" : ""
                   } ${
                     collapsed ? "justify-center" : "gap-3"
@@ -199,6 +271,13 @@ function DashboardSidebar({ activeItem, navigate, onLogout, userId }) {
                       </span>
                     )}
                   </span>
+
+                  {collapsed ? (
+                    <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-4 -translate-y-1/2 translate-x-[-14px] scale-90 whitespace-nowrap rounded-3xl border border-cyan-200/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92)_0%,rgba(15,23,42,0.88)_45%,rgba(2,6,23,0.92)_100%)] px-4 py-2.5 text-sm font-semibold tracking-wide text-white opacity-0 shadow-[0_22px_70px_rgba(2,6,23,0.75)] ring-1 ring-cyan-300/10 backdrop-blur-xl transition-all duration-250 ease-out group-hover:translate-x-0 group-hover:scale-100 group-hover:opacity-100">
+                      <span className="absolute -left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-45 bg-[linear-gradient(135deg,rgba(2,6,23,0.92)_0%,rgba(15,23,42,0.88)_45%,rgba(2,6,23,0.92)_100%)] ring-1 ring-cyan-300/10" />
+                      {item.label}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -216,57 +295,74 @@ function DashboardSidebar({ activeItem, navigate, onLogout, userId }) {
               </p>
             </div>
           )}
-
-          <button
-            type="button"
-            onClick={() => setShowLogoutConfirm(true)}
-            className={`group flex w-full items-center rounded-2xl border border-rose-400/10 bg-rose-400/[0.04] px-3 py-3 text-sm font-medium text-rose-200 transition-all duration-300 hover:border-rose-300/25 hover:bg-rose-400/10 ${
-              collapsed ? "justify-center" : "gap-3"
-            }`}
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-400/10 text-rose-300">
-              <LogOut size={18} strokeWidth={2.2} />
-            </span>
-            <span
-              className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
-                collapsed ? "max-w-0 opacity-0" : "max-w-[150px] opacity-100"
-              }`}
-            >
-              Logout
-            </span>
-          </button>
         </div>
       </div>
 
-      {showLogoutConfirm && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-xs rounded-3xl border border-white/10 bg-slate-900/95 p-5 shadow-2xl">
-            <p className="text-base font-semibold text-white">
-              Log out of Resume<span className="bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400 bg-clip-text text-transparent">IQ</span>?
-            </p>
-            <p className="mt-2 text-sm text-slate-400">
-              Are you sure that you want to log out?
-            </p>
+      <AnimatePresence>
+        {showLogoutConfirm ? (
+          <Motion.div
+            key="logout-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirm logout"
+          >
+            <Motion.button
+              type="button"
+              onClick={() => setShowLogoutConfirm(false)}
+              className="absolute inset-0 bg-slate-950/70"
+              aria-label="Close"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
 
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition-all duration-300 hover:bg-white/10"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={onLogout}
-                className="flex-1 rounded-2xl border border-rose-400/20 bg-rose-500/15 px-4 py-2.5 text-sm font-medium text-rose-200 transition-all duration-300 hover:bg-rose-500/25"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            <Motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="relative w-full max-w-2xl overflow-hidden rounded-[36px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.08),transparent_38%)] bg-slate-950/85 p-7 shadow-[0_40px_140px_rgba(2,6,23,0.85)] backdrop-blur-xl sm:p-10"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 shadow-[0_18px_45px_rgba(2,6,23,0.65)] ring-1 ring-cyan-300/15">
+                  <img src="/image1.png" alt="ResumeIQ logo" className="h-full w-full object-cover" />
+                </span>
+                <p className="text-xs font-semibold uppercase tracking-[0.36em] text-slate-400">RESUMEIQ</p>
+              </div>
+
+              <h2 className="mt-6 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Log out?</h2>
+              <p className="mt-3 max-w-xl text-base text-slate-300 sm:text-lg">
+                Are you sure you want to log out?
+              </p>
+
+              <div className="mt-8 grid grid-cols-2 gap-4 sm:mt-10">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="rounded-full border border-white/10 bg-white/5 px-6 py-4 text-sm font-semibold text-slate-100 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] transition hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLogoutConfirm(false);
+                    onLogout();
+                  }}
+                  className="rounded-full bg-rose-500/90 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_55px_rgba(244,63,94,0.28)] transition hover:bg-rose-500"
+                >
+                  Yes, log out
+                </button>
+              </div>
+            </Motion.div>
+          </Motion.div>
+        ) : null}
+      </AnimatePresence>
     </aside>
   );
 }

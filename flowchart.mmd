@@ -1,0 +1,77 @@
+flowchart TD
+  %% ResumeIQ Dashboard Flow (detailed but easy to follow)
+  %% Tip: read top-to-bottom; each box is a step, diamonds are decisions.
+
+  Start([User opens dashboard]) --> Auth{JWT token valid?}
+  Auth -->|No| ToLogin[Redirect to login]
+  ToLogin --> End([End])
+
+  Auth -->|Yes| LoadUI[Load dashboard UI]
+  LoadUI --> Ready[User sees dashboard]
+
+  subgraph Client["Client (Browser)"]
+    direction TD
+    Ready --> UploadIntent[User clicks Upload Resume]
+    UploadIntent --> SelectFile[Choose file from device]
+    SelectFile --> FileCheck{File type and size valid?}
+    FileCheck -->|No| FileError[Show validation error]
+    FileError --> Ready
+
+    FileCheck -->|Yes| LimitCheck{Within subscription limits?}
+    LimitCheck -->|No| UpgradePrompt[Show upgrade prompt]
+    UpgradePrompt --> Ready
+
+    LimitCheck -->|Yes| SendFile[Send resume file to backend]
+  end
+
+  subgraph Backend["Backend (API Server)"]
+    direction TD
+    SendFile --> Receive[Receive upload request]
+    Receive --> StoredFile[(Store file and metadata)]
+    StoredFile --> Extract[Extract text from resume]
+    Extract --> ExtractOK{Text extracted?}
+    ExtractOK -->|No| ExtractError[Return extraction error]
+    ExtractError --> Ready
+
+    ExtractOK -->|Yes| Clean[Normalize and clean extracted text]
+    Clean --> AIRequest[Call AI analysis pipeline]
+  end
+
+  subgraph AI["AI Analysis (Services)"]
+    direction TD
+    AIRequest --> Analyze[Run analysis on resume text]
+    Analyze --> AIStatus{AI succeeded?}
+    AIStatus -->|No| AIError[Return AI error]
+    AIError --> Ready
+
+    AIStatus -->|Yes| ATS[Compute ATS score]
+    AIStatus -->|Yes| Skills[Extract skills]
+    AIStatus -->|Yes| Suggestions[Generate improvement suggestions]
+  end
+
+  subgraph Results["Results (Dashboard)"]
+    direction TD
+    ATS --> Bundle[Bundle results payload]
+    Skills --> Bundle
+    Suggestions --> Bundle
+    Bundle --> Save[(Save analysis to history)]
+    Save --> Respond[Return results to client]
+    Respond --> Render[Display scores, skills, suggestions]
+    Render --> End
+  end
+
+  %% Network/Server failure paths (kept visible but not overwhelming)
+  SendFile -.->|Network fails| NetError[Show upload failed]
+  Receive -.->|Server error| ServerError[Show server error]
+  NetError --> Ready
+  ServerError --> Ready
+
+  classDef ok fill:#0b3,stroke:#073,color:#fff;
+  classDef err fill:#b20,stroke:#700,color:#fff;
+  classDef gate fill:#415,stroke:#223,color:#fff;
+  classDef store fill:#123,stroke:#345,color:#fff;
+
+  class Render,End ok;
+  class FileError,UpgradePrompt,ExtractError,AIError,NetError,ServerError err;
+  class Auth,FileCheck,LimitCheck,ExtractOK,AIStatus gate;
+  class StoredFile,Save store;

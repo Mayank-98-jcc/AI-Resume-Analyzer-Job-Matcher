@@ -46,6 +46,11 @@
   box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.2);
 }
 
+.login-input--success {
+  border-color: rgba(74, 222, 128, 0.9);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
+}
+
 .login-submit {
   border: 1px solid rgba(103, 232, 249, 0.4);
   color: #ecfeff;

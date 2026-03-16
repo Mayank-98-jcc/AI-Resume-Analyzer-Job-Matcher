@@ -4,21 +4,32 @@ import API from "../services/api";
 import BrandMark from "../components/BrandMark";
 import { ensureGoogleIdentityInitialized, renderGoogleButton, waitForGoogleIdentity } from "../utils/googleIdentity";
 
-function Register() {
+function Signup() {
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRouteSwitching, setIsRouteSwitching] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
   const [apiError, setApiError] = useState("");
+  const [otpMessage, setOtpMessage] = useState("");
+  const [otpError, setOtpError] = useState("");
   const [googleError, setGoogleError] = useState("");
+
   const googleButtonRef = useRef(null);
+
   const [touched, setTouched] = useState({
     name: false,
     email: false,
@@ -29,6 +40,9 @@ function Register() {
   const nameRegex = useMemo(() => /^[A-Za-z ]+$/, []);
   const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
 
+  const emailValue = email.trim();
+  const emailValid = Boolean(emailValue) && emailRegex.test(emailValue);
+
   const validation = useMemo(() => {
     const next = {
       name: "",
@@ -38,7 +52,6 @@ function Register() {
     };
 
     const nameValue = name.trim();
-    const emailValue = email.trim();
 
     if (!nameValue) {
       next.name = "Name is required";
@@ -50,7 +63,7 @@ function Register() {
 
     if (!emailValue) {
       next.email = "Email is required";
-    } else if (!emailRegex.test(emailValue)) {
+    } else if (!emailValid) {
       next.email = "Enter a valid email address";
     }
 
@@ -73,13 +86,14 @@ function Register() {
     }
 
     return next;
-  }, [name, email, password, confirmPassword, nameRegex, emailRegex]);
+  }, [name, nameRegex, emailValue, emailValid, password, confirmPassword]);
 
   const isFormValid =
     !validation.name &&
     !validation.email &&
     !validation.password &&
-    !validation.confirmPassword;
+    !validation.confirmPassword &&
+    emailVerified;
 
   useEffect(() => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -146,10 +160,79 @@ function Register() {
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
+  const handleEmailChange = (value) => {
+    setEmail(value);
+    setEmailVerified(false);
+    setShowOtpInput(false);
+    setOtp("");
+    setOtpMessage("");
+    setOtpError("");
+    setApiError("");
+  };
+
+  const handleSendOtp = async () => {
+    setApiError("");
+    setOtpMessage("");
+    setOtpError("");
+
+    if (!emailValid) {
+      setTouched((prev) => ({ ...prev, email: true }));
+      return;
+    }
+
+    setIsSendingOtp(true);
+    try {
+      const res = await API.post("/auth/send-otp", { email: emailValue });
+      setOtpMessage(res.data?.message || "OTP sent successfully");
+      setShowOtpInput(true);
+    } catch (err) {
+      const message =
+        err?.response?.data?.message || err?.response?.data?.error || "Unable to send OTP";
+      setOtpError(message);
+      setShowOtpInput(false);
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    setOtpError("");
+    setOtpMessage("");
+
+    if (!emailValid) {
+      setOtpError("Enter a valid email address first");
+      return;
+    }
+
+    const otpValue = String(otp).trim();
+    if (otpValue.length !== 6) {
+      setOtpError("Enter the 6 digit OTP");
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    try {
+      const res = await API.post("/auth/verify-otp", {
+        email: emailValue,
+        otp: otpValue
+      });
+      setEmailVerified(true);
+      setShowOtpInput(false);
+      setOtpMessage(res.data?.message || "Email verified successfully");
+    } catch (err) {
+      const message =
+        err?.response?.data?.message || err?.response?.data?.error || "Invalid OTP";
+      setOtpError(message);
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
     setApiError("");
     setGoogleError("");
+
     setTouched({
       name: true,
       email: true,
@@ -157,14 +240,18 @@ function Register() {
       confirmPassword: true
     });
 
+    if (!emailVerified) {
+      setApiError("Please verify your email before creating account");
+      return;
+    }
+
     if (!isFormValid) return;
 
     setIsSubmitting(true);
-
     try {
       const res = await API.post("/auth/register", {
         name: name.trim(),
-        email: email.trim(),
+        email: emailValue,
         password
       });
 
@@ -187,6 +274,13 @@ function Register() {
     setTimeout(() => navigate("/login"), 200);
   };
 
+  const emailInputClassName = useMemo(() => {
+    if (!emailValue) return "";
+    if (!emailValid) return "login-input--error";
+    if (emailVerified) return "login-input--success";
+    return "";
+  }, [emailValue, emailValid, emailVerified]);
+
   return (
     <div className="login-shell min-h-screen flex items-center justify-center p-6 text-white">
       <div className="login-blob login-blob--one" />
@@ -198,7 +292,7 @@ function Register() {
 
         <h2 className="text-3xl font-bold text-center tracking-tight">Create Account</h2>
         <p className="mt-2 text-center text-sm text-slate-300">
-          Build your profile and start analyzing resumes
+          Verify your email to continue
         </p>
 
         <form className="mt-8 space-y-5" onSubmit={handleRegister} noValidate>
@@ -222,25 +316,69 @@ function Register() {
 
           <div>
             <label className="block text-sm font-medium mb-2" htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onBlur={() => handleBlur("email")}
-              placeholder="you@example.com"
-              className={`login-input w-full rounded-xl px-4 py-3 ${
-                email.trim()
-                  ? validation.email
-                    ? "login-input--error"
-                    : "login-input--success"
-                  : ""
-              }`}
-            />
+            <div className="flex gap-3">
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                onBlur={() => handleBlur("email")}
+                placeholder="you@example.com"
+                className={`login-input w-full rounded-xl px-4 py-3 ${emailInputClassName}`}
+                disabled={emailVerified}
+              />
+              <button
+                type="button"
+                onClick={handleSendOtp}
+                disabled={!emailValid || isSendingOtp || emailVerified}
+                className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSendingOtp ? "Sending..." : emailVerified ? "Verified" : "Send OTP"}
+              </button>
+            </div>
+
             {touched.email && validation.email && (
               <p className="mt-2 text-sm text-rose-300">{validation.email}</p>
             )}
+            {emailVerified && (
+              <p className="mt-2 text-sm text-emerald-200">Email verified successfully</p>
+            )}
           </div>
+
+          {showOtpInput && (
+            <div>
+              <label className="block text-sm font-medium mb-2" htmlFor="otp">OTP</label>
+              <div className="flex gap-3">
+                <input
+                  id="otp"
+                  inputMode="numeric"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="Enter 6 digit OTP"
+                  className="login-input w-full rounded-xl px-4 py-3 tracking-[0.35em]"
+                />
+                <button
+                  type="button"
+                  onClick={handleVerifyOtp}
+                  disabled={String(otp).trim().length !== 6 || isVerifyingOtp}
+                  className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isVerifyingOtp ? "Verifying..." : "Verify"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {(otpMessage || otpError) && (
+            <p className={`rounded-lg border px-3 py-2 text-sm ${
+              otpError
+                ? "border-rose-400/40 bg-rose-500/10 text-rose-200"
+                : "border-emerald-400/40 bg-emerald-500/10 text-emerald-100"
+            }`}
+            >
+              {otpError || otpMessage}
+            </p>
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-2" htmlFor="password">Password</label>
@@ -310,12 +448,16 @@ function Register() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !emailVerified}
             className={`login-submit auth-submit-flip w-full rounded-xl px-4 py-3 font-semibold ${
               isSubmitting ? "is-loading" : ""
             }`}
           >
-            {isSubmitting ? "Creating account..." : "Create Account"}
+            {!emailVerified
+              ? "Verify email to continue"
+              : isSubmitting
+                ? "Creating account..."
+                : "Create Account"}
           </button>
 
           <div className="flex justify-center">
@@ -342,4 +484,5 @@ function Register() {
   );
 }
 
-export default Register;
+export default Signup;
+

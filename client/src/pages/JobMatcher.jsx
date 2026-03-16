@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 import { CircularProgressbar } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import { jwtDecode } from "jwt-decode";
 import { useNavigate } from "react-router-dom";
-import { BriefcaseBusiness, Sparkles, TrendingUp } from "lucide-react";
+import { BriefcaseBusiness, Crown, Lock, Sparkles, TrendingUp, Unlock } from "lucide-react";
 import API from "../services/api";
 import DashboardSidebar from "../components/DashboardSidebar";
 
@@ -29,8 +29,32 @@ function JobMatcher() {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState("");
+  const [subscription, setSubscription] = useState({
+    plan: "free",
+    hasPremiumAccess: false,
+    subscriptionExpiry: null
+  });
   const glassCardClass =
     "rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl";
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!userId) return;
+
+      try {
+        const res = await API.get(`/auth/profile/${userId}`);
+        setSubscription({
+          plan: res.data?.plan || "free",
+          hasPremiumAccess: Boolean(res.data?.hasPremiumAccess),
+          subscriptionExpiry: res.data?.subscriptionExpiry || null
+        });
+      } catch (fetchError) {
+        console.error("Profile error:", fetchError);
+      }
+    };
+
+    fetchProfile();
+  }, [userId]);
 
   useEffect(() => {
     const getHistory = async () => {
@@ -59,6 +83,7 @@ function JobMatcher() {
     () => history.find((item) => item._id === selectedResumeId) || null,
     [history, selectedResumeId]
   );
+  const hasPremiumAccess = Boolean(subscription?.hasPremiumAccess);
 
   const matchScoreValue = jobResult?.matchScore ?? 0;
   const fitLevel =
@@ -90,6 +115,11 @@ function JobMatcher() {
   };
 
   const handleMatchJob = async () => {
+    if (!hasPremiumAccess) {
+      navigate("/billing", { state: { plan: "premium" } });
+      return;
+    }
+
     if (!selectedResumeId) {
       setError("Please upload a resume first.");
       return;
@@ -132,7 +162,7 @@ function JobMatcher() {
           userId={userId}
         />
 
-        <motion.main
+        <Motion.main
           className="flex-1 overflow-y-auto p-6 md:p-8 lg:p-10"
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -147,26 +177,62 @@ function JobMatcher() {
               </p>
             </div>
 
-            <motion.div
+            <Motion.div
               className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.08)]"
               initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1, duration: 0.35 }}
               whileHover={{ y: -2, scale: 1.02 }}
             >
-              <Sparkles size={16} />
-              AI powered fit insights
-            </motion.div>
+              {hasPremiumAccess ? <Unlock size={16} /> : <Lock size={16} />}
+              {hasPremiumAccess ? "Premium unlocked" : "Upgrade to Premium"}
+            </Motion.div>
           </div>
 
-          <motion.section
-            className={`${glassCardClass} mt-8 relative overflow-hidden`}
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.08, duration: 0.4 }}
-          >
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent" />
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_1fr]">
+          <div className="relative mt-8">
+            <div className={hasPremiumAccess ? "" : "blur-sm opacity-60 pointer-events-none"}>
+              <Motion.section
+                className={`${glassCardClass} relative overflow-hidden`}
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.08, duration: 0.4 }}
+              >
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent" />
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-semibold">AI Job Match Analyzer</h2>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+                        hasPremiumAccess
+                          ? "bg-emerald-500/15 text-emerald-200"
+                          : "bg-amber-500/15 text-amber-200"
+                      }`}
+                    >
+                      {hasPremiumAccess ? <Unlock size={14} /> : <Lock size={14} />}
+                      {hasPremiumAccess ? "Unlocked" : "Premium"}
+                    </span>
+                  </div>
+
+                  {!hasPremiumAccess && (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/billing", { state: { plan: "premium" } })}
+                      className="dashboard-btn-secondary inline-flex items-center gap-2"
+                    >
+                      <Crown size={16} />
+                      Upgrade to Premium
+                    </button>
+                  )}
+                </div>
+
+                {!hasPremiumAccess && (
+                  <p className="mb-5 inline-flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                    <Lock size={15} />
+                    Upgrade to Premium to unlock Job Match Analyzer
+                  </p>
+                )}
+
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[320px_1fr]">
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-slate-200">Choose Resume</label>
@@ -190,7 +256,7 @@ function JobMatcher() {
                   </select>
                 </div>
 
-                <motion.div
+                <Motion.div
                   className="rounded-2xl border border-slate-700/50 bg-slate-950/40 p-4"
                   whileHover={{ y: -3 }}
                   transition={{ duration: 0.2 }}
@@ -215,7 +281,7 @@ function JobMatcher() {
                   ) : (
                     <p className="mt-3 text-sm text-slate-400">Upload a resume to start matching jobs.</p>
                   )}
-                </motion.div>
+                </Motion.div>
               </div>
 
               <div>
@@ -229,7 +295,7 @@ function JobMatcher() {
                 />
 
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <motion.button
+                  <Motion.button
                     type="button"
                     onClick={handleMatchJob}
                     disabled={loading}
@@ -239,31 +305,55 @@ function JobMatcher() {
                   >
                     <BriefcaseBusiness size={18} />
                     {loading ? "Analyzing..." : "Analyze Job Match"}
-                  </motion.button>
+                  </Motion.button>
 
                   {error && (
-                    <motion.p
+                    <Motion.p
                       className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200"
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                     >
                       {error}
-                    </motion.p>
+                    </Motion.p>
                   )}
                 </div>
               </div>
+                </div>
+              </Motion.section>
             </div>
-          </motion.section>
 
-          {jobResult && (
-            <motion.section
+            {!hasPremiumAccess && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex max-w-md flex-col items-center rounded-3xl border border-white/10 bg-slate-950/90 p-6 text-center shadow-2xl backdrop-blur-md">
+                  <div className="mb-4 rounded-2xl bg-cyan-400/10 p-4 text-cyan-200">
+                    <Lock size={26} />
+                  </div>
+                  <h3 className="text-xl font-semibold text-white">Premium Feature Locked</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    Upgrade to Premium to unlock AI Job Match Analyzer and compare resumes against job descriptions.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/billing", { state: { plan: "premium" } })}
+                    className="dashboard-btn-primary mt-5 inline-flex items-center gap-2"
+                  >
+                    <Crown size={16} />
+                    Upgrade to Premium
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {jobResult && hasPremiumAccess && (
+            <Motion.section
               className={`${glassCardClass} mt-8`}
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
             >
               <div className="grid grid-cols-1 gap-8 xl:grid-cols-[240px_1fr]">
-                <motion.div
+                <Motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.05, duration: 0.35 }}
@@ -283,7 +373,7 @@ function JobMatcher() {
                     />
                   </div>
                   <p className="mt-4 text-center text-sm font-semibold text-slate-200">Job Match Score</p>
-                </motion.div>
+                </Motion.div>
 
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -299,7 +389,7 @@ function JobMatcher() {
                       <span>{coverageMatched}% matched</span>
                     </div>
                     <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-700/70">
-                      <motion.div
+                      <Motion.div
                         className="h-full rounded-full bg-cyan-400"
                         initial={{ width: 0 }}
                         animate={{ width: `${coverageMatched}%` }}
@@ -314,7 +404,7 @@ function JobMatcher() {
                       <div className="mt-3 flex flex-wrap gap-2">
                         {(jobResult.matchedSkills || []).length ? (
                           jobResult.matchedSkills.map((skill, index) => (
-                            <motion.span
+                            <Motion.span
                               key={`${skill}-${index}`}
                               className="rounded-full border border-emerald-400/35 bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-200"
                               initial={{ opacity: 0, y: 8 }}
@@ -322,7 +412,7 @@ function JobMatcher() {
                               transition={{ delay: index * 0.04, duration: 0.2 }}
                             >
                               {skill}
-                            </motion.span>
+                            </Motion.span>
                           ))
                         ) : (
                           <span className="text-sm text-slate-400">No matched skills detected yet.</span>
@@ -335,7 +425,7 @@ function JobMatcher() {
                       <div className="mt-3 flex flex-wrap gap-2">
                         {(jobResult.missingSkills || []).length ? (
                           jobResult.missingSkills.map((skill, index) => (
-                            <motion.span
+                            <Motion.span
                               key={`${skill}-${index}`}
                               className="rounded-full border border-rose-400/35 bg-rose-500/10 px-3 py-1 text-sm font-medium text-rose-200"
                               initial={{ opacity: 0, y: 8 }}
@@ -343,7 +433,7 @@ function JobMatcher() {
                               transition={{ delay: index * 0.04, duration: 0.2 }}
                             >
                               {skill}
-                            </motion.span>
+                            </Motion.span>
                           ))
                         ) : (
                           <span className="text-sm text-emerald-300">No missing skills detected.</span>
@@ -356,7 +446,7 @@ function JobMatcher() {
                     <p className="text-sm font-medium text-slate-100">Action Items</p>
                     <ul className="mt-3 space-y-2 text-sm text-slate-300">
                       {fitActionItems.map((item, index) => (
-                        <motion.li
+                        <Motion.li
                           key={`${item}-${index}`}
                           className="rounded-xl bg-slate-900/50 px-3 py-2"
                           initial={{ opacity: 0, x: -8 }}
@@ -364,16 +454,17 @@ function JobMatcher() {
                           transition={{ delay: index * 0.06, duration: 0.2 }}
                         >
                           {item}
-                        </motion.li>
+                        </Motion.li>
                       ))}
                     </ul>
                   </div>
                 </div>
               </div>
-            </motion.section>
+            </Motion.section>
           )}
-        </motion.main>
+        </Motion.main>
       </div>
+
     </div>
   );
 }
