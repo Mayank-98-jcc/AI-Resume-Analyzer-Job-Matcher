@@ -20,6 +20,7 @@ function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState("");
   const googleButtonRef = useRef(null);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
 
@@ -51,8 +52,10 @@ function Login() {
   }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
+    if (import.meta.env.DEV) {
+      console.log("Google Client ID:", googleClientId);
+    }
+    if (!googleClientId) return;
 
     let cancelled = false;
 
@@ -84,7 +87,7 @@ function Login() {
         await waitForGoogleIdentity({ timeoutMs: 8000 });
         if (cancelled) return;
 
-        ensureGoogleIdentityInitialized(clientId);
+        ensureGoogleIdentityInitialized(googleClientId);
 
         renderGoogleButton(googleButtonRef.current, {
           type: "standard",
@@ -94,7 +97,7 @@ function Login() {
           size: "large",
           width: "320"
         });
-      } catch (err) {
+      } catch {
         if (!cancelled) {
           setGoogleError(
             "Google sign-in is not available right now. Check that your Google OAuth client allows this origin (e.g. http://localhost:5173)."
@@ -109,7 +112,7 @@ function Login() {
         globalThis.__resumeiq_gsi_onCredential = null;
       }
     };
-  }, [navigate]);
+  }, [googleClientId, navigate]);
 
   const redirectAfterAuth = async (token) => {
     const decoded = jwtDecode(token);
@@ -245,11 +248,13 @@ function Login() {
             {isSubmitting ? "Signing in..." : "Sign In"}
           </button>
 
-          <div className="flex justify-center">
-            <div ref={googleButtonRef} />
-          </div>
-          {!import.meta.env.VITE_GOOGLE_CLIENT_ID && (
-            <p className="text-sm text-amber-200 text-center">
+          {googleClientId ? (
+            <div className="flex justify-center">
+              <div ref={googleButtonRef} />
+            </div>
+          ) : null}
+          {!googleClientId && (
+            <p className="text-sm text-yellow-400 text-center">
               Google auth is not configured. Add `VITE_GOOGLE_CLIENT_ID`.
             </p>
           )}
