@@ -13,7 +13,20 @@ const matchingRoutes = require("./routes/matchingRoutes");
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use((req, res, next) => {
+  console.log(req.method, req.originalUrl);
+  next();
+});
+
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean)
+      : "*",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+  })
+);
 app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/resume", resumeRoutes);
@@ -22,9 +35,13 @@ app.use("/api/payment", paymentRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", matchingRoutes);
 
-// Test route
+// Debug routes
 app.get("/", (req, res) => {
-  res.send("AI Resume Analyzer Backend is Running 🚀");
+  res.send("Backend is running");
+});
+
+app.get("/test", (req, res) => {
+  res.send("API working");
 });
 
 // MongoDB connection
@@ -34,6 +51,13 @@ mongoose.connect(process.env.MONGO_URI)
 })
 .catch((err) => {
   console.error("MongoDB Connection Failed:", err);
+});
+
+app.use((req, res) => {
+  res.status(404).json({
+    error: "Route not found",
+    path: req.originalUrl
+  });
 });
 
 // Server start
