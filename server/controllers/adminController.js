@@ -1,6 +1,7 @@
 const Resume = require("../models/Resume");
 const User = require("../models/User");
 const Activity = require("../models/Activity");
+const ShortlistedCandidate = require("../models/ShortlistedCandidate");
 const fs = require("fs");
 const path = require("path");
 
@@ -18,6 +19,10 @@ function escapeRegex(value = "") {
 
 function normalizeRole(role = "") {
   return String(role).trim().toLowerCase().replace(/\s+/g, "_");
+}
+
+function toObjectIdString(value) {
+  return value ? String(value) : "";
 }
 
 exports.getAllUsers = async (req, res) => {
@@ -77,9 +82,49 @@ exports.getAllUsers = async (req, res) => {
 
 exports.getAllResumes = async (req, res) => {
   try {
-    const resumes = await Resume.find({})
-      .populate("userId", "name email")
-      .sort({ uploadedAt: -1 });
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100);
+    const q = String(req.query.q || "").trim();
+    const sortByRaw = String(req.query.sortBy || "uploadedAt").trim();
+    const sortDirRaw = String(req.query.sortDir || "desc").trim().toLowerCase();
+
+    const allowedSort = new Set(["uploadedAt", "atsScore", "fileName"]);
+    const sortBy = allowedSort.has(sortByRaw) ? sortByRaw : "uploadedAt";
+    const sortDir = sortDirRaw === "asc" ? 1 : -1;
+    const skip = (page - 1) * limit;
+
+    const resumeFilter = {};
+
+    if (q) {
+      const qRegex = new RegExp(escapeRegex(q), "i");
+      const matchingUsers = await User.find(
+        {
+          role: { $ne: "admin" },
+          $or: [{ name: qRegex }, { email: qRegex }]
+        },
+        "_id"
+      ).lean();
+
+      const matchingUserIds = matchingUsers.map((user) => user._id);
+
+      resumeFilter.$or = [
+        { fileName: qRegex },
+        { skills: { $elemMatch: { $regex: qRegex } } }
+      ];
+
+      if (matchingUserIds.length) {
+        resumeFilter.$or.push({ userId: { $in: matchingUserIds } });
+      }
+    }
+
+    const [total, resumes] = await Promise.all([
+      Resume.countDocuments(resumeFilter),
+      Resume.find(resumeFilter)
+        .populate("userId", "name email")
+        .sort({ [sortBy]: sortDir, uploadedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+    ]);
 
     const formattedResumes = resumes.map((resume) => ({
       _id: resume._id,
@@ -95,7 +140,19 @@ exports.getAllResumes = async (req, res) => {
       uploadedAt: resume.uploadedAt
     }));
 
-    return res.json(formattedResumes);
+    const totalPages = Math.max(Math.ceil(total / limit), 1);
+
+    return res.json({
+      data: formattedResumes,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasPrev: page > 1,
+        hasNext: page < totalPages
+      }
+    });
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch resumes",
@@ -205,9 +262,18 @@ exports.getAdminResumeFile = async (req, res) => {
 exports.getAdminStats = async (req, res) => {
   try {
     const nonAdminFilter = { role: { $ne: "admin" } };
+    const freePlanFilter = {
+      ...nonAdminFilter,
+      $or: [
+        { plan: "free" },
+        { plan: null },
+        { plan: "" },
+        { plan: { $exists: false } }
+      ]
+    };
     const [totalUsers, freeUsers, proUsers, premiumUsers, totalResumes] = await Promise.all([
       User.countDocuments(nonAdminFilter),
-      User.countDocuments({ ...nonAdminFilter, plan: "free" }),
+      User.countDocuments(freePlanFilter),
       User.countDocuments({ ...nonAdminFilter, plan: "pro" }),
       User.countDocuments({ ...nonAdminFilter, plan: "premium" }),
       Resume.countDocuments({})
@@ -389,6 +455,98 @@ exports.getAdminActivity = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch admin activity",
+      error: error.message
+    });
+  }
+};
+
+exports.getShortlistedCandidates = async (req, res) => {
+  try {
+    const shortlist = await ShortlistedCandidate.find({ adminId: req.user._id })
+      .select("resumeId userId createdAt")
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      shortlistedResumeIds: shortlist.map((entry) => toObjectIdString(entry.resumeId)),
+      shortlistedUserIds: shortlist.map((entry) => toObjectIdString(entry.userId)),
+      items: shortlist.map((entry) => ({
+        _id: entry._id,
+        resumeId: toObjectIdString(entry.resumeId),
+        userId: toObjectIdString(entry.userId),
+        createdAt: entry.createdAt
+      }))
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to load shortlisted candidates",
+      error: error.message
+    });
+  }
+};
+
+exports.addShortlistedCandidate = async (req, res) => {
+  try {
+    const resumeId = String(req.body?.resumeId || "").trim();
+
+    if (!resumeId) {
+      return res.status(400).json({ message: "resumeId is required" });
+    }
+
+    const resume = await Resume.findById(resumeId).select("_id userId");
+    if (!resume) {
+      return res.status(404).json({ message: "Candidate resume not found" });
+    }
+
+    const shortlist = await ShortlistedCandidate.findOneAndUpdate(
+      { adminId: req.user._id, resumeId: resume._id },
+      {
+        adminId: req.user._id,
+        userId: resume.userId,
+        resumeId: resume._id
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    );
+
+    return res.json({
+      message: "Candidate shortlisted successfully",
+      item: {
+        _id: shortlist._id,
+        resumeId: toObjectIdString(shortlist.resumeId),
+        userId: toObjectIdString(shortlist.userId),
+        createdAt: shortlist.createdAt
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to shortlist candidate",
+      error: error.message
+    });
+  }
+};
+
+exports.removeShortlistedCandidate = async (req, res) => {
+  try {
+    const resumeId = String(req.params.resumeId || "").trim();
+
+    if (!resumeId) {
+      return res.status(400).json({ message: "resumeId is required" });
+    }
+
+    await ShortlistedCandidate.deleteOne({
+      adminId: req.user._id,
+      resumeId
+    });
+
+    return res.json({
+      message: "Candidate removed from shortlist"
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to remove shortlisted candidate",
       error: error.message
     });
   }

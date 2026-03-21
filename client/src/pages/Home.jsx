@@ -61,8 +61,13 @@ function Home() {
           </div>
 
           <div className="home-visual">
-            <div className="home-orbit home-orbit--outer" />
-            <div className="home-orbit home-orbit--inner" />
+            <div className="home-sparkfield" />
+            <div className="home-planet home-planet--left" />
+            <div className="home-planet-ring home-planet-ring--main" />
+            <div className="home-planet-ring home-planet-ring--secondary" />
+            <div className="home-planet home-planet--main" />
+            <div className="home-planet home-planet--small" />
+            <div className="home-planet home-planet--mist" />
             <div className="home-glass">
               <p className="text-sm font-semibold text-cyan-200">Resume Impact</p>
               <p className="mt-2 text-3xl font-bold">86%</p>

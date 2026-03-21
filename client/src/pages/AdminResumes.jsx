@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion as Motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Download, Eye, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Eye, Search, X } from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
 import API from "../services/api";
 import AdminLayout from "../components/AdminLayout";
@@ -38,6 +38,18 @@ function AdminResumes() {
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const perPage = 10;
+  const [query, setQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [sortBy, setSortBy] = useState("uploadedAt");
+  const [sortDir, setSortDir] = useState("desc");
+  const [meta, setMeta] = useState({
+    page: 1,
+    limit: perPage,
+    total: 0,
+    totalPages: 1,
+    hasPrev: false,
+    hasNext: false
+  });
   const [selectedResume, setSelectedResume] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [fileUrl, setFileUrl] = useState("");
@@ -53,33 +65,48 @@ function AdminResumes() {
       try {
         setLoading(true);
         setError("");
-        const res = await API.get("/admin/resumes");
-        setResumes(Array.isArray(res.data) ? res.data : []);
+        const res = await API.get("/admin/resumes", {
+          params: {
+            page,
+            limit: perPage,
+            q: query,
+            sortBy,
+            sortDir
+          }
+        });
+        setResumes(Array.isArray(res.data?.data) ? res.data.data : []);
+        setMeta(
+          res.data?.meta || {
+            page,
+            limit: perPage,
+            total: 0,
+            totalPages: 1,
+            hasPrev: false,
+            hasNext: false
+          }
+        );
       } catch (fetchError) {
         console.error("Admin resumes fetch error:", fetchError);
         setError(fetchError?.response?.data?.message || "Unable to load resumes right now.");
         setResumes([]);
+        setMeta({
+          page: 1,
+          limit: perPage,
+          total: 0,
+          totalPages: 1,
+          hasPrev: false,
+          hasNext: false
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchResumes();
-  }, []);
+  }, [page, perPage, query, sortBy, sortDir]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [resumes.length]);
-
-  const totalPages = Math.max(1, Math.ceil(resumes.length / perPage));
-
-  const pagedResumes = useMemo(() => {
-    const startIndex = (page - 1) * perPage;
-    return resumes.slice(startIndex, startIndex + perPage);
-  }, [page, resumes]);
-
-  const canPrev = page > 1;
-  const canNext = page < totalPages;
+  const canPrev = meta.hasPrev;
+  const canNext = meta.hasNext;
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -148,6 +175,12 @@ function AdminResumes() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+    setPage(1);
+    setQuery(searchInput.trim());
+  };
+
   return (
     <AdminLayout
       title="Resumes"
@@ -158,11 +191,55 @@ function AdminResumes() {
           <div>
             <p className="text-sm font-semibold text-white">All Resumes</p>
             <p className="text-sm text-slate-300">
-              {loading ? "Loading..." : `${resumes.length} resume${resumes.length === 1 ? "" : "s"} total`}
+              {loading ? "Loading..." : `${meta.total} resume${meta.total === 1 ? "" : "s"} total`}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/30 px-3 py-3">
+              <Search size={16} className="text-slate-400" />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Search by user, email, file, skill"
+                className="w-56 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
+              />
+              <button
+                type="submit"
+                className="rounded-xl bg-cyan-400/15 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/25"
+              >
+                Search
+              </button>
+            </form>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={sortBy}
+                onChange={(event) => {
+                  setPage(1);
+                  setSortBy(event.target.value);
+                }}
+                className="rounded-2xl border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-slate-100 outline-none"
+              >
+                <option value="uploadedAt">Latest Upload</option>
+                <option value="atsScore">ATS Score</option>
+                <option value="fileName">File Name</option>
+              </select>
+              <select
+                value={sortDir}
+                onChange={(event) => {
+                  setPage(1);
+                  setSortDir(event.target.value);
+                }}
+                className="rounded-2xl border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-slate-100 outline-none"
+              >
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
@@ -173,17 +250,18 @@ function AdminResumes() {
               Prev
             </button>
             <span className="rounded-2xl border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-slate-200">
-              Page {page} / {totalPages}
+              Page {meta.page} / {meta.totalPages}
             </span>
             <button
               type="button"
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              onClick={() => setPage((prev) => Math.min(meta.totalPages, prev + 1))}
               disabled={!canNext}
               className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next
               <ChevronRight size={16} />
             </button>
+            </div>
           </div>
         </div>
 
@@ -202,7 +280,7 @@ function AdminResumes() {
               </tr>
             </thead>
             <tbody>
-              {pagedResumes.map((resume) => (
+              {resumes.map((resume) => (
                 <tr key={resume._id} className="border-t border-white/5 align-top">
                   <td className="px-6 py-4">
                     <p className="font-medium text-slate-100">{resume.userName || "-"}</p>
@@ -233,7 +311,7 @@ function AdminResumes() {
               {!loading && resumes.length === 0 && (
                 <tr>
                   <td colSpan="4" className="px-6 py-10 text-center text-slate-400">
-                    No resumes uploaded yet.
+                    No resumes found for the current search.
                   </td>
                 </tr>
               )}

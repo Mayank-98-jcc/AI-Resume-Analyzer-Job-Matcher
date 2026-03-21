@@ -137,7 +137,7 @@ exports.matchCandidatesWithJob = async (req, res) => {
     const requiredSkills = extractSkillsFromJobDescription(jobDescription);
 
     const resumes = await Resume.find({})
-      .populate("userId", "name email")
+      .populate("userId", "name email plan")
       .sort({ uploadedAt: -1 });
 
     const candidates = resumes
@@ -153,6 +153,7 @@ exports.matchCandidatesWithJob = async (req, res) => {
           resumeId: resume._id,
           name: resume.userId?.name || "Unknown",
           email: resume.userId?.email || "",
+          plan: resume.userId?.plan || "free",
           resumeFile: resume.fileName || "Untitled Resume",
           atsScore: resume.atsScore ?? 0,
           matchScore,

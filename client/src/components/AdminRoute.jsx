@@ -50,7 +50,9 @@ function AdminRoute({ children }) {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-center text-white">
+      <div className="admin-route-shell flex min-h-screen items-center justify-center px-6 text-center text-white">
+        <div className="admin-panel-glow admin-panel-glow--one" />
+        <div className="admin-panel-glow admin-panel-glow--two" />
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/70">ResumeIQ</p>
           <h1 className="mt-3 text-2xl font-semibold">Checking admin access</h1>
@@ -61,7 +63,9 @@ function AdminRoute({ children }) {
 
   if (status === "error") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-center text-white">
+      <div className="admin-route-shell flex min-h-screen items-center justify-center px-6 text-center text-white">
+        <div className="admin-panel-glow admin-panel-glow--one" />
+        <div className="admin-panel-glow admin-panel-glow--two" />
         <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl">
           <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/70">ResumeIQ</p>
           <h1 className="mt-3 text-2xl font-semibold">Admin panel unavailable</h1>

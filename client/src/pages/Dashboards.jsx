@@ -648,7 +648,7 @@ function Dashboard() {
                 </div>
                 <button
                   type="button"
-                  onClick={openBillingPage}
+                  onClick={() => openBillingPage(currentPlan === "free" ? "pro" : currentPlan)}
                   className="dashboard-btn-secondary inline-flex items-center gap-2"
                 >
                   <Crown size={16} />

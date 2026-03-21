@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion as Motion } from "framer-motion";
 import { Search, Star } from "lucide-react";
 import API from "../services/api";
@@ -25,6 +25,31 @@ function normalizeRoleFromTitle(input) {
   return value.replace(/\s+/g, "_");
 }
 
+function getPlanPresentation(planValue) {
+  const plan = String(planValue || "free").toLowerCase();
+
+  if (plan === "premium") {
+    return {
+      label: "Premium plan",
+      className:
+        "border-amber-200/25 bg-[linear-gradient(135deg,rgba(251,191,36,0.22),rgba(244,114,182,0.2))] text-amber-50 shadow-[0_10px_28px_rgba(251,191,36,0.16)]"
+    };
+  }
+
+  if (plan === "pro") {
+    return {
+      label: "Pro plan",
+      className:
+        "border-cyan-300/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.16),rgba(99,102,241,0.18))] text-cyan-100 shadow-[0_10px_24px_rgba(34,211,238,0.12)]"
+    };
+  }
+
+  return {
+    label: "Free plan",
+    className: "border-white/10 bg-white/5 text-slate-300"
+  };
+}
+
 function AdminCandidates() {
   const [jobTitle, setJobTitle] = useState("");
   const [activeRole, setActiveRole] = useState("backend");
@@ -32,11 +57,36 @@ function AdminCandidates() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [shortlisted, setShortlisted] = useState(() => new Set());
+  const [updatingShortlist, setUpdatingShortlist] = useState(() => new Set());
 
   const activeLabel = useMemo(
     () => rolePresets.find((preset) => preset.value === activeRole)?.label || "Custom role",
     [activeRole]
   );
+
+  const sortedCandidates = useMemo(() => {
+    return [...candidates].sort((a, b) => {
+      const aShortlisted = shortlisted.has(a._id);
+      const bShortlisted = shortlisted.has(b._id);
+
+      if (aShortlisted === bShortlisted) return 0;
+      return aShortlisted ? -1 : 1;
+    });
+  }, [candidates, shortlisted]);
+
+  useEffect(() => {
+    const loadShortlist = async () => {
+      try {
+        const res = await API.get("/admin/shortlist");
+        const ids = Array.isArray(res.data?.shortlistedResumeIds) ? res.data.shortlistedResumeIds : [];
+        setShortlisted(new Set(ids));
+      } catch (fetchError) {
+        console.error("Shortlist load error:", fetchError);
+      }
+    };
+
+    loadShortlist();
+  }, []);
 
   const runSearch = async (roleValue) => {
     if (!roleValue) return;
@@ -62,13 +112,33 @@ function AdminCandidates() {
     runSearch(normalizedRole);
   };
 
-  const toggleShortlist = (candidateId) => {
-    setShortlisted((prev) => {
-      const next = new Set(prev);
-      if (next.has(candidateId)) next.delete(candidateId);
-      else next.add(candidateId);
-      return next;
-    });
+  const toggleShortlist = async (candidateId) => {
+    if (!candidateId) return;
+
+    setUpdatingShortlist((prev) => new Set(prev).add(candidateId));
+
+    try {
+      if (shortlisted.has(candidateId)) {
+        await API.delete(`/admin/shortlist/${candidateId}`);
+        setShortlisted((prev) => {
+          const next = new Set(prev);
+          next.delete(candidateId);
+          return next;
+        });
+      } else {
+        await API.post("/admin/shortlist", { resumeId: candidateId });
+        setShortlisted((prev) => new Set(prev).add(candidateId));
+      }
+    } catch (toggleError) {
+      console.error("Shortlist update error:", toggleError);
+      setError(toggleError?.response?.data?.message || "Unable to update shortlist right now.");
+    } finally {
+      setUpdatingShortlist((prev) => {
+        const next = new Set(prev);
+        next.delete(candidateId);
+        return next;
+      });
+    }
   };
 
   return (
@@ -166,9 +236,12 @@ function AdminCandidates() {
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.05 } } }}
         className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
       >
-        {candidates.map((candidate) => {
-          const isShortlisted = shortlisted.has(candidate._id);
+        {sortedCandidates.map((candidate) => {
+          const resumeId = candidate._id;
+          const isShortlisted = shortlisted.has(resumeId);
+          const isUpdating = updatingShortlist.has(resumeId);
           const skills = Array.isArray(candidate.skills) ? candidate.skills : [];
+          const planPresentation = getPlanPresentation(candidate.plan);
 
           return (
             <Motion.article
@@ -219,22 +292,45 @@ function AdminCandidates() {
               </div>
 
               <div className="mt-5 flex items-center justify-between gap-3">
-                <button
+                <Motion.button
                   type="button"
-                  onClick={() => toggleShortlist(candidate._id)}
+                  onClick={() => toggleShortlist(resumeId)}
+                  disabled={isUpdating}
+                  whileHover={isUpdating ? undefined : { y: -1, scale: 1.01 }}
+                  whileTap={isUpdating ? undefined : { scale: 0.99 }}
                   className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
                     isShortlisted
-                      ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/15"
+                      ? "border-yellow-300/30 bg-[linear-gradient(135deg,rgba(250,204,21,0.18),rgba(251,146,60,0.14))] text-yellow-100 shadow-[0_0_24px_rgba(250,204,21,0.12)] hover:bg-[linear-gradient(135deg,rgba(250,204,21,0.24),rgba(251,146,60,0.18))]"
                       : "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
-                  }`}
+                  } ${isUpdating ? "cursor-not-allowed opacity-70" : ""}`}
                 >
-                  <Star size={16} />
-                  {isShortlisted ? "Shortlisted" : "Shortlist Candidate"}
-                </button>
+                  <Motion.span
+                    animate={
+                      isShortlisted
+                        ? { rotate: [0, -10, 10, -10, 0], scale: [1, 1.12, 1] }
+                        : { rotate: 0, scale: 1 }
+                    }
+                    transition={{ duration: 1.8, repeat: isShortlisted ? Infinity : 0, repeatDelay: 1.1 }}
+                    className="inline-flex"
+                  >
+                    <Star size={16} className={isShortlisted ? "fill-yellow-300 text-yellow-300" : ""} />
+                  </Motion.span>
+                  {isUpdating ? "Updating..." : isShortlisted ? "Shortlisted" : "Shortlist Candidate"}
+                </Motion.button>
 
-                <span className="text-xs text-slate-400">
-                  {candidate.plan ? `${String(candidate.plan).toUpperCase()} plan` : ""}
-                </span>
+                <Motion.span
+                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${planPresentation.className}`}
+                  animate={
+                    candidate.plan === "pro"
+                      ? { boxShadow: ["0 0 0 rgba(34,211,238,0.10)", "0 0 22px rgba(34,211,238,0.18)", "0 0 0 rgba(34,211,238,0.10)"] }
+                      : candidate.plan === "premium"
+                        ? { y: [0, -2, 0], boxShadow: ["0 0 0 rgba(251,191,36,0.10)", "0 0 26px rgba(251,191,36,0.22)", "0 0 0 rgba(251,191,36,0.10)"] }
+                        : undefined
+                  }
+                  transition={{ duration: 2.8, repeat: (candidate.plan === "pro" || candidate.plan === "premium") ? Infinity : 0 }}
+                >
+                  {planPresentation.label}
+                </Motion.span>
               </div>
 
               <div className="pointer-events-none absolute -right-12 -top-10 h-32 w-32 rounded-full bg-cyan-400/10 blur-2xl" />

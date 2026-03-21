@@ -146,6 +146,11 @@ function AdminDashboard() {
     ];
   }, [analytics?.plans, stats.freeUsers, stats.premiumUsers, stats.proUsers]);
 
+  const chartPlanData = useMemo(() => {
+    const activePlans = planData.filter((item) => item.value > 0);
+    return activePlans.length ? activePlans : planData;
+  }, [planData]);
+
   const planTotal = useMemo(() => planData.reduce((sum, item) => sum + (item.value || 0), 0), [planData]);
 
   const previewUsers = useMemo(() => users.slice(0, 5), [users]);
@@ -311,15 +316,15 @@ function AdminDashboard() {
                     }}
                   />
                   <Pie
-                    data={planData}
+                    data={chartPlanData}
                     dataKey="value"
                     nameKey="name"
                     innerRadius={56}
                     outerRadius={92}
-                    paddingAngle={3}
+                    paddingAngle={chartPlanData.length > 1 ? 3 : 0}
                     stroke="rgba(15,23,42,0.5)"
                   >
-                    {planData.map((entry) => (
+                    {chartPlanData.map((entry) => (
                       <Cell key={entry.key} fill={planPalette[entry.key]} />
                     ))}
                   </Pie>

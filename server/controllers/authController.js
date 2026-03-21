@@ -11,6 +11,35 @@ const createToken = (userId) =>
 
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
 const isValidEmailFormat = (email = "") => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim().toLowerCase());
+const configuredAdminEmails = () =>
+  String(process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((email) => normalizeEmail(email))
+    .filter(Boolean);
+
+async function ensureAdminAccess(user) {
+  if (!user) return user;
+
+  const normalizedUserEmail = normalizeEmail(user.email);
+
+  if (configuredAdminEmails().includes(normalizedUserEmail) && user.role !== "admin") {
+    user.role = "admin";
+    await user.save();
+    return user;
+  }
+
+  if (user.role === "admin") {
+    return user;
+  }
+
+  const adminCount = await User.countDocuments({ role: "admin" });
+  if (adminCount === 0) {
+    user.role = "admin";
+    await user.save();
+  }
+
+  return user;
+}
 
 function getEmailSendErrorMessage(error) {
   const code = String(error?.code || "").toUpperCase();
@@ -95,6 +124,8 @@ exports.loginUser = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
+
+    await ensureAdminAccess(user);
 
     const token = createToken(user._id);
 
@@ -395,6 +426,8 @@ exports.googleAuth = async (req, res) => {
       });
     }
 
+    await ensureAdminAccess(user);
+
     const token = createToken(user._id);
 
     return res.json({
@@ -421,6 +454,7 @@ exports.getUserProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    await ensureAdminAccess(user);
     await refreshUserSubscriptionStatus(user);
 
     return res.json({

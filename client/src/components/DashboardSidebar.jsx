@@ -8,6 +8,7 @@ import {
   ChevronDown,
   History,
   Home,
+  Lock,
   LogOut,
   ScrollText,
   Upload,
@@ -326,27 +327,50 @@ function DashboardSidebar({ activeItem, navigate, onLogout, userId }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              className="relative w-full max-w-2xl overflow-hidden rounded-[36px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.08),transparent_38%)] bg-slate-950/85 p-7 shadow-[0_40px_140px_rgba(2,6,23,0.85)] backdrop-blur-xl sm:p-10"
+              className="relative w-full max-w-5xl overflow-hidden rounded-[40px] border border-white/15 bg-[linear-gradient(135deg,rgba(14,20,44,0.8),rgba(25,18,55,0.62))] p-7 shadow-[0_40px_140px_rgba(2,6,23,0.85)] backdrop-blur-[18px] sm:p-10"
             >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 shadow-[0_18px_45px_rgba(2,6,23,0.65)] ring-1 ring-cyan-300/15">
-                  <img src="/image1.png" alt="ResumeIQ logo" className="h-full w-full object-cover" />
-                </span>
-                <p className="text-xs font-semibold uppercase tracking-[0.36em] text-slate-400">RESUMEIQ</p>
-              </div>
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(91,214,255,0.18),transparent_28%),radial-gradient(circle_at_top_center,rgba(255,97,201,0.18),transparent_22%),radial-gradient(circle_at_bottom_center,rgba(255,120,170,0.16),transparent_22%)]" />
+              <div className="pointer-events-none absolute left-[-12%] top-[18%] h-56 w-56 rounded-full bg-cyan-400/18 blur-3xl" />
+              <div className="pointer-events-none absolute right-[-6%] top-[20%] h-64 w-64 rounded-full bg-fuchsia-500/16 blur-3xl" />
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-pink-300/80 to-transparent" />
+              <div className="pointer-events-none absolute inset-x-8 bottom-0 h-px bg-gradient-to-r from-cyan-300/0 via-orange-300/80 to-pink-400/0" />
 
-              <h2 className="mt-6 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Log out?</h2>
-              <p className="mt-3 max-w-xl text-base text-slate-300 sm:text-lg">
-                Are you sure you want to log out?
-              </p>
+              <div className="relative">
+                <div className="flex items-center gap-4">
+                  <span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-cyan-300/30 bg-slate-950/50 shadow-[0_0_0_1px_rgba(34,211,238,0.08),0_18px_45px_rgba(2,6,23,0.65)]">
+                    <img src="/image1.png" alt="ResumeIQ logo" className="h-full w-full object-cover" />
+                  </span>
+                  <p className="text-lg font-semibold tracking-[0.16em] text-slate-300/90 sm:text-xl">
+                    Resume
+                    <span className="bg-[linear-gradient(120deg,#3ce9ff_0%,#67a8ff_50%,#8a7bff_100%)] bg-clip-text text-transparent">
+                      IQ
+                    </span>
+                  </p>
+                </div>
 
-              <div className="mt-8 grid grid-cols-2 gap-4 sm:mt-10">
+                <h2 className="mt-10 text-4xl font-semibold tracking-tight text-white sm:text-6xl">
+                  Confirm logout ?{" "}
+                  <Motion.span
+                    aria-hidden="true"
+                    className="inline-block origin-[70%_70%]"
+                    animate={{ rotate: [0, 16, -8, 16, 0], y: [0, -2, 0] }}
+                    transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 1.8, ease: "easeInOut" }}
+                  >
+                    👋
+                  </Motion.span>
+                </h2>
+                <div className="mt-5 max-w-2xl space-y-2 text-lg text-slate-300 sm:text-2xl">
+                  <p>Your session will end securely.</p>
+                  <p>Come back anytime, we&apos;ll be here.</p>
+                </div>
+
+                <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:mt-12">
                 <button
                   type="button"
                   onClick={() => setShowLogoutConfirm(false)}
-                  className="rounded-full border border-white/10 bg-white/5 px-6 py-4 text-sm font-semibold text-slate-100 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] transition hover:bg-white/10"
+                  className="rounded-full border border-cyan-300/25 bg-white/[0.04] px-6 py-4 text-base font-semibold text-slate-100 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04),0_12px_30px_rgba(4,10,28,0.35)] transition hover:border-cyan-300/40 hover:bg-white/[0.08]"
                 >
-                  Cancel
+                  Stay here
                 </button>
                 <button
                   type="button"
@@ -354,10 +378,16 @@ function DashboardSidebar({ activeItem, navigate, onLogout, userId }) {
                     setShowLogoutConfirm(false);
                     onLogout();
                   }}
-                  className="rounded-full bg-rose-500/90 px-6 py-4 text-sm font-semibold text-white shadow-[0_18px_55px_rgba(244,63,94,0.28)] transition hover:bg-rose-500"
+                  className="rounded-full border border-pink-300/30 bg-[linear-gradient(135deg,rgba(255,92,136,0.96),rgba(255,49,137,0.92))] px-6 py-4 text-base font-semibold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_0_35px_rgba(255,71,166,0.36),0_18px_55px_rgba(244,63,94,0.28)] transition hover:brightness-110"
                 >
-                  Yes, log out
+                  Log out safely
                 </button>
+              </div>
+
+                <div className="mt-8 flex items-center justify-center gap-3 text-sm text-slate-300/85 sm:text-base">
+                  <Lock size={18} className="text-violet-200" />
+                  <span>Your data is safe &amp; secure</span>
+                </div>
               </div>
             </Motion.div>
           </Motion.div>
