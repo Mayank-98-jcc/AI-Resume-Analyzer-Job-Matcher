@@ -7,6 +7,7 @@ const authRoutes = require("./routes/authRoutes");
 const resumeRoutes = require("./routes/resumeRoutes");
 const jobRoutes = require("./routes/jobRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const billingRoutes = require("./routes/billingRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const matchingRoutes = require("./routes/matchingRoutes");
 
@@ -32,6 +33,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/resume", resumeRoutes);
 app.use("/api/job", jobRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/billing", billingRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", matchingRoutes);
 

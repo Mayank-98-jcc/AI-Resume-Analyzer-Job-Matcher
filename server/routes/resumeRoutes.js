@@ -18,7 +18,6 @@ const {
 } = require("../controllers/resumeController");
 
 const {
-  matchJob,
   highlightKeywords
 } = require("../utils/jobMatcher");
 
@@ -53,17 +52,6 @@ router.get(
   "/history/:userId",
   requireAuth,
   getResumeHistory
-);
-
-
-// ==========================
-// Job Description Match
-// ==========================
-router.post(
-  "/match-job",
-  requireAuth,
-  checkPremiumAccess,
-  matchJob
 );
 
 

@@ -4,7 +4,7 @@ import { CircularProgressbar } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import { jwtDecode } from "jwt-decode";
 import { useNavigate } from "react-router-dom";
-import { BriefcaseBusiness, Crown, Lock, Sparkles, TrendingUp, Unlock } from "lucide-react";
+import { BriefcaseBusiness, Crown, Lock, Sparkles, TrendingUp, Unlock, Zap } from "lucide-react";
 import API from "../services/api";
 import DashboardSidebar from "../components/DashboardSidebar";
 
@@ -85,29 +85,20 @@ function JobMatcher() {
   );
   const hasPremiumAccess = Boolean(subscription?.hasPremiumAccess);
 
-  const matchScoreValue = jobResult?.matchScore ?? 0;
+  const matchScoreValue = jobResult?.score ?? 0;
   const fitLevel =
     matchScoreValue >= 80 ? "Excellent Fit" : matchScoreValue >= 60 ? "Good Fit" : "Needs Work";
   const fitLevelClasses =
     matchScoreValue >= 80
       ? "border-emerald-400/45 bg-emerald-500/10 text-emerald-200"
       : matchScoreValue >= 60
-        ? "border-amber-400/45 bg-amber-500/10 text-amber-200"
+      ? "border-amber-400/45 bg-amber-500/10 text-amber-200"
         : "border-rose-400/45 bg-rose-500/10 text-rose-200";
-  const totalJobSkills = (jobResult?.matchedSkills?.length || 0) + (jobResult?.missingSkills?.length || 0);
-  const coverageMatched = totalJobSkills
-    ? Math.round(((jobResult?.matchedSkills?.length || 0) / totalJobSkills) * 100)
-    : 0;
   const topMissingSkills = (jobResult?.missingSkills || []).slice(0, 4);
-  const fitActionItems = [
-    topMissingSkills.length
-      ? `Add these keywords in projects or experience: ${topMissingSkills.join(", ")}.`
-      : "No major keyword gaps detected for this job description.",
-    matchScoreValue < 70
-      ? "Customize the summary and achievements with exact role terms from the JD."
-      : "Add one more quantified achievement that mirrors the top requirement.",
-    "Keep your core skills close to the top of the resume for stronger ATS parsing."
-  ];
+  const fitActionItems = String(jobResult?.suggestions || "")
+    .split(/\n+|(?<=[.!?])\s+/)
+    .map((item) => item.replace(/^[\s\-*•\d.]+/, "").trim())
+    .filter(Boolean);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -134,8 +125,8 @@ function JobMatcher() {
       setLoading(true);
       setError("");
 
-      const res = await API.post("/resume/match-job", {
-        resumeId: selectedResumeId,
+      const res = await API.post("/job/match", {
+        resumeText: selectedResume?.extractedText || "",
         jobDescription: jobDesc
       });
 
@@ -175,6 +166,12 @@ function JobMatcher() {
                 Compare any uploaded resume against a job description and see match score, missing skills,
                 and action items before you apply.
               </p>
+              {hasPremiumAccess && (
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-400/15 px-4 py-2 text-sm font-medium text-amber-100">
+                  <Zap size={16} />
+                  Priority AI Processing Enabled
+                </div>
+              )}
             </div>
 
             <Motion.div
@@ -360,11 +357,11 @@ function JobMatcher() {
                 >
                   <div className="mx-auto w-40">
                     <CircularProgressbar
-                      value={jobResult.matchScore}
-                      text={`${jobResult.matchScore}%`}
+                      value={jobResult.score}
+                      text={`${jobResult.score}%`}
                       styles={{
                         path: {
-                          stroke: jobResult.matchScore >= 70 ? "#22c55e" : "#f59e0b",
+                          stroke: jobResult.score >= 70 ? "#22c55e" : "#f59e0b",
                           strokeLinecap: "round"
                         },
                         text: { fill: "#f8fafc", fontSize: "18px", fontWeight: 700 },
@@ -385,67 +382,46 @@ function JobMatcher() {
 
                   <div className="mt-5">
                     <div className="mb-1 flex items-center justify-between text-xs font-medium text-slate-300">
-                      <span>Keyword Coverage</span>
-                      <span>{coverageMatched}% matched</span>
+                      <span>Overall Match</span>
+                      <span>{jobResult.score}% aligned</span>
                     </div>
                     <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-700/70">
                       <Motion.div
                         className="h-full rounded-full bg-cyan-400"
                         initial={{ width: 0 }}
-                        animate={{ width: `${coverageMatched}%` }}
+                        animate={{ width: `${jobResult.score}%` }}
                         transition={{ duration: 0.7, ease: "easeOut" }}
                       />
                     </div>
                   </div>
 
-                  <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-                    <div>
-                      <p className="text-sm font-medium text-slate-200">Matched Skills</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {(jobResult.matchedSkills || []).length ? (
-                          jobResult.matchedSkills.map((skill, index) => (
-                            <Motion.span
-                              key={`${skill}-${index}`}
-                              className="rounded-full border border-emerald-400/35 bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-200"
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.04, duration: 0.2 }}
-                            >
-                              {skill}
-                            </Motion.span>
-                          ))
-                        ) : (
-                          <span className="text-sm text-slate-400">No matched skills detected yet.</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-medium text-slate-200">Missing Skills</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {(jobResult.missingSkills || []).length ? (
-                          jobResult.missingSkills.map((skill, index) => (
-                            <Motion.span
-                              key={`${skill}-${index}`}
-                              className="rounded-full border border-rose-400/35 bg-rose-500/10 px-3 py-1 text-sm font-medium text-rose-200"
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.04, duration: 0.2 }}
-                            >
-                              {skill}
-                            </Motion.span>
-                          ))
-                        ) : (
-                          <span className="text-sm text-emerald-300">No missing skills detected.</span>
-                        )}
-                      </div>
+                  <div className="mt-6">
+                    <p className="text-sm font-medium text-slate-200">Missing Skills</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(jobResult.missingSkills || []).length ? (
+                        jobResult.missingSkills.map((skill, index) => (
+                          <Motion.span
+                            key={`${skill}-${index}`}
+                            className="rounded-full border border-rose-400/35 bg-rose-500/10 px-3 py-1 text-sm font-medium text-rose-200"
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.04, duration: 0.2 }}
+                          >
+                            {skill}
+                          </Motion.span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-emerald-300">No major missing skills detected.</span>
+                      )}
                     </div>
                   </div>
 
                   <div className="mt-6 rounded-2xl border border-cyan-300/15 bg-slate-950/35 p-4">
                     <p className="text-sm font-medium text-slate-100">Action Items</p>
                     <ul className="mt-3 space-y-2 text-sm text-slate-300">
-                      {fitActionItems.map((item, index) => (
+                      {(fitActionItems.length ? fitActionItems : [
+                        "Customize your summary and experience bullets using the exact language from the job description."
+                      ]).map((item, index) => (
                         <Motion.li
                           key={`${item}-${index}`}
                           className="rounded-xl bg-slate-900/50 px-3 py-2"

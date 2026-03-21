@@ -6,8 +6,10 @@ import {
   CircleDot,
   CreditCard,
   Crown,
+  CalendarDays,
   Landmark,
   LoaderCircle,
+  Receipt,
   ShieldCheck,
   Smartphone,
   Sparkles,
@@ -131,6 +133,7 @@ function Billing() {
   }
 
   const [profile, setProfile] = useState(null);
+  const [billingData, setBillingData] = useState(null);
   const [loadingPlan, setLoadingPlan] = useState("");
   const [selectedPlanKey, setSelectedPlanKey] = useState(() => {
     const requestedPlan = location.state?.plan;
@@ -150,8 +153,12 @@ function Billing() {
 
     const fetchProfile = async () => {
       try {
-        const res = await API.get(`/auth/profile/${userId}`);
-        setProfile(res.data || null);
+        const [profileRes, billingRes] = await Promise.all([
+          API.get(`/auth/profile/${userId}`),
+          API.get("/billing/history")
+        ]);
+        setProfile(profileRes.data || null);
+        setBillingData(billingRes.data || null);
       } catch (error) {
         console.error("Billing profile error:", error);
         setToast({
@@ -165,6 +172,8 @@ function Billing() {
   }, [navigate, token, userId]);
 
   const currentPlan = profile?.plan || "free";
+  const paymentHistory = billingData?.paymentHistory || [];
+  const nextBillingDate = billingData?.nextBillingDate || profile?.subscriptionExpiry || null;
   const selectedPlan = useMemo(
     () => PRICING_PLANS.find((plan) => plan.key === selectedPlanKey) || null,
     [selectedPlanKey]
@@ -210,7 +219,7 @@ function Billing() {
   };
 
   const verifyPayment = async (paymentResponse, plan) => {
-    const response = await API.post("/payment/verify-payment", {
+    const response = await API.post("/billing/verify-payment", {
       razorpay_payment_id: paymentResponse.razorpay_payment_id,
       razorpay_order_id: paymentResponse.razorpay_order_id,
       razorpay_signature: paymentResponse.razorpay_signature,
@@ -223,6 +232,8 @@ function Billing() {
         ...response.data.subscription
       }));
     }
+
+    setBillingData(response.data || null);
 
     setToast({
       message: "Plan upgraded successfully",
@@ -256,7 +267,7 @@ function Billing() {
         throw new Error("Razorpay checkout is not loaded");
       }
 
-      const response = await API.post("/payment/create-order", { plan });
+      const response = await API.post("/billing/create-order", { plan });
       const order = response.data?.order;
       const key = import.meta.env.VITE_RAZORPAY_KEY || response.data?.keyId;
 
@@ -310,6 +321,41 @@ function Billing() {
     }
   };
 
+  const handleDowngrade = async () => {
+    try {
+      setLoadingPlan("free");
+      setToast({
+        message: "",
+        type: "info"
+      });
+
+      const response = await API.post("/billing/upgrade", {
+        plan: "free"
+      });
+
+      if (response.data?.subscription) {
+        setProfile((prev) => ({
+          ...(prev || {}),
+          ...response.data.subscription
+        }));
+      }
+
+      setBillingData(response.data || null);
+      setSelectedPlanKey("");
+      setToast({
+        message: "Plan downgraded to Free",
+        type: "success"
+      });
+    } catch (error) {
+      setToast({
+        message: error?.response?.data?.error || "Unable to downgrade plan",
+        type: "error"
+      });
+    } finally {
+      setLoadingPlan("");
+    }
+  };
+
   return (
     <div className="dashboard-shell min-h-screen text-white">
       <div className="dashboard-glow dashboard-glow--one" />
@@ -355,6 +401,12 @@ function Billing() {
                   <Crown size={16} className="text-cyan-300" />
                   Current plan: {currentPlanLabel}
                 </div>
+                {nextBillingDate && currentPlan !== "free" && (
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-100">
+                    <CalendarDays size={16} />
+                    Next billing date: {new Date(nextBillingDate).toLocaleDateString()}
+                  </div>
+                )}
               </div>
             </Motion.section>
 
@@ -701,51 +753,131 @@ function Billing() {
             )}
 
             <Motion.section
-              className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1.3fr_0.7fr]"
+              className="mt-8 space-y-6"
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.28, duration: 0.35 }}
             >
               <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-8 backdrop-blur-xl">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  Need custom plan?
-                </p>
-                <h2 className="mt-3 text-3xl font-bold text-white">
-                  Contact support for enterprise pricing.
-                </h2>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-                  If you need custom usage limits, team billing, or a larger deployment for your organization,
-                  we can set up a tailored ResumeIQ plan for you.
-                </p>
-                <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-100">
-                  <Sparkles size={15} />
-                  support@resumeiq.ai
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      Billing History
+                    </p>
+                    <h2 className="mt-3 text-3xl font-bold text-white">Invoices and payments</h2>
+                    <p className="mt-3 text-sm leading-7 text-slate-300">
+                      View your payment history, invoice IDs, plan changes, and billing status.
+                    </p>
+                  </div>
+
+                  {currentPlan !== "free" && (
+                    <button
+                      type="button"
+                      onClick={handleDowngrade}
+                      disabled={Boolean(loadingPlan)}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {loadingPlan === "free" ? (
+                        <>
+                          <LoaderCircle size={16} className="animate-spin" />
+                          Updating
+                        </>
+                      ) : (
+                        <>
+                          <X size={16} />
+                          Downgrade to Free
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-6 overflow-hidden rounded-[24px] border border-white/10">
+                  <div className="grid grid-cols-[1.1fr_0.8fr_0.8fr_0.9fr] gap-4 bg-slate-950/55 px-5 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    <span>Invoice</span>
+                    <span>Plan</span>
+                    <span>Amount</span>
+                    <span>Status</span>
+                  </div>
+
+                  {paymentHistory.length ? (
+                    paymentHistory.map((entry) => (
+                      <div
+                        key={`${entry.invoiceId}-${entry.date}`}
+                        className="grid grid-cols-[1.1fr_0.8fr_0.8fr_0.9fr] gap-4 border-t border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-slate-200"
+                      >
+                        <div>
+                          <div className="inline-flex items-center gap-2 font-semibold text-white">
+                            <Receipt size={15} className="text-cyan-200" />
+                            {entry.invoiceId}
+                          </div>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {entry.date ? new Date(entry.date).toLocaleString() : "Date unavailable"}
+                          </p>
+                        </div>
+                        <div className="font-medium capitalize">{entry.plan}</div>
+                        <div className="font-semibold text-emerald-200">₹{Number(entry.amount || 0).toFixed(2)}</div>
+                        <div>
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            entry.status === "paid"
+                              ? "bg-emerald-400/15 text-emerald-100"
+                              : "bg-amber-400/15 text-amber-100"
+                          }`}>
+                            {entry.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="bg-white/[0.03] px-5 py-10 text-center text-sm text-slate-400">
+                      No invoices or payment records yet.
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-8 backdrop-blur-xl">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-200">
-                    <ShieldCheck size={22} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">Secure Billing</h3>
-                    <p className="text-sm text-slate-400">Powered by Razorpay checkout</p>
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-8 backdrop-blur-xl">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                    Need custom plan?
+                  </p>
+                  <h2 className="mt-3 text-3xl font-bold text-white">
+                    Contact support for enterprise pricing.
+                  </h2>
+                  <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
+                    If you need custom usage limits, team billing, or a larger deployment for your organization,
+                    we can set up a tailored ResumeIQ plan for you.
+                  </p>
+                  <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-100">
+                    <Sparkles size={15} />
+                    support@resumeiq.ai
                   </div>
                 </div>
 
-                <div className="mt-6 space-y-3 text-sm text-slate-200">
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-8 backdrop-blur-xl">
                   <div className="flex items-center gap-3">
-                    <Check size={16} className="text-emerald-300" />
-                    UPI, Cards, Net Banking, Wallets
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-200">
+                      <ShieldCheck size={22} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">Secure Billing</h3>
+                      <p className="text-sm text-slate-400">Powered by Razorpay checkout</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Check size={16} className="text-emerald-300" />
-                    Signature verified on backend
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Check size={16} className="text-emerald-300" />
-                    Plan updates stored in MongoDB
+
+                  <div className="mt-6 space-y-3 text-sm text-slate-200">
+                    <div className="flex items-center gap-3">
+                      <Check size={16} className="text-emerald-300" />
+                      UPI, Cards, Net Banking, Wallets
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Check size={16} className="text-emerald-300" />
+                      Signature verified on backend
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Check size={16} className="text-emerald-300" />
+                      Plan updates stored in MongoDB
+                    </div>
                   </div>
                 </div>
               </div>

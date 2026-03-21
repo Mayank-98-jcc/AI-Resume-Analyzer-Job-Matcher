@@ -1,8 +1,18 @@
 const axios = require("axios");
+const {
+  enqueuePremiumTask,
+  enqueueNormalTask
+} = require("./aiQueue");
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const SUMMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const REWRITE_MODEL = "gemini-1.5-flash";
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 async function generateGeminiText({ model, prompt }) {
   if (!GEMINI_API_KEY) {
@@ -39,7 +49,23 @@ async function generateGeminiText({ model, prompt }) {
   }
 }
 
-async function generateSummary(resumeText) {
+async function fastAIResponse(input) {
+  return generateGeminiText(input);
+}
+
+async function normalAIResponse(input) {
+  await delay(2000);
+  return generateGeminiText(input);
+}
+
+async function processAI(input, user = {}, options = {}) {
+  const isPremium = user?.plan === "premium" || Boolean(options.priority);
+  const runner = () => (isPremium ? fastAIResponse(input) : normalAIResponse(input));
+
+  return isPremium ? enqueuePremiumTask(runner) : enqueueNormalTask(runner);
+}
+
+async function generateSummary(resumeText, user, options = {}) {
   const prompt = `
 You are an AI resume analyzer.
 
@@ -53,13 +79,13 @@ Return:
 - 3 bullet points
 `;
 
-  return generateGeminiText({
+  return processAI({
     model: SUMMARY_MODEL,
     prompt
-  });
+  }, user, options);
 }
 
-async function rewriteResumeWithGemini(resumeText) {
+async function rewriteResumeWithGemini(resumeText, user, options = {}) {
   const prompt = `You are a professional resume writer.
 
 Rewrite the following resume content to improve clarity,
@@ -87,13 +113,44 @@ Resume Content:
 
 ${resumeText}`;
 
-  return generateGeminiText({
+  return processAI({
     model: REWRITE_MODEL,
     prompt
-  });
+  }, user, options);
+}
+
+async function compareResumeWithJobDescription({ resumeText, jobDescription }, user, options = {}) {
+  const prompt = `Compare this resume with job description and return JSON only with:
+{
+  "score": 0,
+  "missingSkills": ["skill 1"],
+  "suggestions": "short improvement suggestions"
+}
+
+Rules:
+- Score must be an integer from 0 to 100
+- missingSkills must contain only concrete missing skills or keywords
+- suggestions must be concise and actionable
+- Base the comparison on skills, keywords, and experience alignment
+- Do not include markdown fences
+
+Resume:
+${resumeText}
+
+Job Description:
+${jobDescription}`;
+
+  return processAI({
+    model: SUMMARY_MODEL,
+    prompt
+  }, user, options);
 }
 
 module.exports = {
+  processAI,
+  fastAIResponse,
+  normalAIResponse,
   generateSummary,
-  rewriteResumeWithGemini
+  rewriteResumeWithGemini,
+  compareResumeWithJobDescription
 };

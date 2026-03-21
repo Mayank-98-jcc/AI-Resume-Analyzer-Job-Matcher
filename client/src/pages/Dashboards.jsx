@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion as Motion } from "framer-motion";
-import { Copy, Crown, Lock, Sparkles, Unlock } from "lucide-react";
+import { Copy, Crown, Lock, Sparkles, Unlock, Zap } from "lucide-react";
 import API from "../services/api";
 import { CircularProgressbar } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
@@ -80,13 +80,9 @@ function Dashboard() {
   const usageCount = subscription?.resumeUsageCount ?? 0;
   const latestScore = result?.atsScore ?? "-";
   const skillsFound = result?.skills?.length ?? "-";
-  const latestResume = history[0] || null;
-  const activeResumeId = result?.resumeId || latestResume?._id || null;
-  const strengthMeter =
-    result?.strengthMeter ||
-    latestResume?.strengthMeter ||
-    strengthData ||
-    null;
+  const activeResumeId = result?.resumeId || null;
+  const hasAnalyzedResume = Boolean(activeResumeId);
+  const strengthMeter = result?.strengthMeter || strengthData || null;
   const activeSuggestions = loadedSuggestions;
   const activeSuggestionProgress = loadedSuggestionProgress;
 
@@ -143,6 +139,12 @@ function Dashboard() {
     }
 
     return false;
+  };
+
+  const scrollToUploadSection = () => {
+    document
+      .getElementById("dashboard-upload-section")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   const getResumeRanking = async (atsScoreValue) => {
@@ -302,10 +304,7 @@ function Dashboard() {
       return;
     }
 
-    const sourceText =
-      result?.resumeText ||
-      latestResume?.extractedText ||
-      "";
+    const sourceText = result?.resumeText || "";
 
     if (!sourceText.trim()) {
       setSummaryError("No resume text available to summarize.");
@@ -353,10 +352,7 @@ function Dashboard() {
       return;
     }
 
-    const sourceSkills =
-      result?.skills ||
-      latestResume?.skills ||
-      [];
+    const sourceSkills = result?.skills || [];
 
     if (!Array.isArray(sourceSkills) || !sourceSkills.length) {
       setCareerError("No extracted skills available for career suggestions.");
@@ -392,10 +388,7 @@ function Dashboard() {
       return;
     }
 
-    const sourceText =
-      result?.resumeText ||
-      latestResume?.extractedText ||
-      "";
+    const sourceText = result?.resumeText || "";
 
     if (!sourceText.trim()) {
       setRewriteError("No resume text available to rewrite.");
@@ -502,7 +495,7 @@ function Dashboard() {
         return;
       }
 
-      if (result?.strengthMeter || latestResume?.strengthMeter) {
+      if (result?.strengthMeter) {
         setStrengthData(null);
         return;
       }
@@ -519,7 +512,7 @@ function Dashboard() {
     };
 
     fetchStrengthMeter();
-  }, [activeResumeId, result, latestResume]);
+  }, [activeResumeId, result]);
 
   useEffect(() => {
     const fetchSectionAnalysis = async () => {
@@ -596,8 +589,8 @@ function Dashboard() {
   }, [activeResumeId]);
 
   useEffect(() => {
-    setIsUnlocked(Boolean(activeResumeId));
-  }, [activeResumeId]);
+    setIsUnlocked(hasAnalyzedResume);
+  }, [hasAnalyzedResume]);
 
   useEffect(() => {
     if (!showUnlockAnimation) return undefined;
@@ -707,6 +700,12 @@ function Dashboard() {
                 <span className={`rounded-full px-3 py-1 text-xs font-semibold ${hasPremiumAccess ? "bg-emerald-500/15 text-emerald-200" : "bg-slate-800 text-slate-300"}`}>
                   Premium Tools {hasPremiumAccess ? "Unlocked" : "Locked"}
                 </span>
+                {hasPremiumAccess && (
+                  <span className="inline-flex items-center gap-2 rounded-full bg-amber-400/15 px-3 py-1 text-xs font-semibold text-amber-100">
+                    <Zap size={13} />
+                    Priority AI Processing Enabled
+                  </span>
+                )}
               </div>
             </div>
           </section>
@@ -858,7 +857,7 @@ function Dashboard() {
           </div>
 
           <div className="relative mt-8">
-            <div className={isUnlocked ? "" : "blur-sm opacity-60 pointer-events-none"}>
+            <div className={isUnlocked ? "" : "blur-sm opacity-60 pointer-events-none select-none"}>
               <section className={glassCardClass}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-xl font-semibold">AI Resume Suggestions</h2>
@@ -1196,33 +1195,37 @@ function Dashboard() {
 
             {(!isUnlocked || showUnlockAnimation) && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="flex flex-col items-center rounded-xl bg-black/50 p-6 backdrop-blur-md">
-                  <Motion.button
-                    type="button"
-                    className="dashboard-lock-button"
-                    initial={{ scale: 1 }}
-                    animate={isUnlocked ? { rotate: 360, scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
-                    whileHover={
-                      isUnlocked
-                        ? undefined
-                        : { y: -4, rotate: [0, -10, 10, -6, 6, 0], scale: 1.08 }
-                    }
-                    whileTap={isUnlocked ? undefined : { scale: 0.92, rotate: [0, -12, 12, 0] }}
-                    transition={{ duration: 0.6 }}
-                  >
-                    {isUnlocked ? (
-                      <Unlock size={40} className="text-white" />
-                    ) : (
-                      <Lock size={40} className="text-white" />
-                    )}
-                  </Motion.button>
-
+                <Motion.div
+                  className="mx-4 flex max-w-md flex-col items-center rounded-2xl border border-cyan-300/20 bg-slate-950/70 p-6 text-center shadow-2xl backdrop-blur-md"
+                  initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.35 }}
+                >
                   {!isUnlocked && (
-                    <p className="mt-2 text-center text-sm text-gray-300">
-                      Upload and analyze a resume to unlock AI features
-                    </p>
+                    <>
+                      <Motion.div
+                        animate={{ y: [0, -8, 0] }}
+                        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                        className="mt-4 rounded-full border border-cyan-300/20 bg-cyan-400/10 p-4"
+                      >
+                        <FaFileAlt className="text-2xl text-cyan-200" />
+                      </Motion.div>
+                      <h3 className="mt-4 text-lg font-semibold text-white">Upload Resume First</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">
+                        AI Resume Suggestions, AI Resume Summary, and AI Career Suggestions unlock only after you upload and analyze a resume.
+                      </p>
+                      <Motion.button
+                        type="button"
+                        onClick={scrollToUploadSection}
+                        whileHover={{ scale: 1.04 }}
+                        whileTap={{ scale: 0.97 }}
+                        className="dashboard-btn-primary mt-5"
+                      >
+                        Upload Resume
+                      </Motion.button>
+                    </>
                   )}
-                </div>
+                </Motion.div>
               </div>
             )}
           </div>

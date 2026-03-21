@@ -416,7 +416,7 @@ exports.getUserProfile = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId).select("name email role plan resumeUsageCount subscriptionExpiry");
+    const user = await User.findById(userId).select("name email role plan resumeUsageCount subscriptionExpiry paymentHistory");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }

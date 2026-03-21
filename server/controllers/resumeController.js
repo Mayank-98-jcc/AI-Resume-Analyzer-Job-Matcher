@@ -556,6 +556,7 @@ exports.getResumeRanking = async (req, res) => {
 exports.generateSummary = async (req, res) => {
   try {
     const { resumeText } = req.body;
+    const isPremium = req.user?.plan === "premium";
 
     if (!resumeText) {
       return res.status(400).json({
@@ -563,7 +564,9 @@ exports.generateSummary = async (req, res) => {
       });
     }
 
-    const summaryResponse = await generateSummaryAI(resumeText);
+    const summaryResponse = await generateSummaryAI(resumeText, req.user, {
+      priority: isPremium
+    });
     const fallbackSummary = generateResumeSummary(resumeText);
     const summary = normalizeSummaryPoints(
       summaryResponse,
@@ -592,6 +595,7 @@ exports.generateSummary = async (req, res) => {
 exports.rewriteResume = async (req, res) => {
   try {
     const { resumeText } = req.body;
+    const isPremium = req.user?.plan === "premium";
 
     if (!String(resumeText || "").trim()) {
       return res.status(400).json({
@@ -599,7 +603,9 @@ exports.rewriteResume = async (req, res) => {
       });
     }
 
-    const rewrittenResume = await rewriteResumeWithGemini(String(resumeText).trim());
+    const rewrittenResume = await rewriteResumeWithGemini(String(resumeText).trim(), req.user, {
+      priority: isPremium
+    });
 
     return res.json({
       rewrittenResume
