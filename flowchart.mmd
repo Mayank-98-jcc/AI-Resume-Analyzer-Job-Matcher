@@ -32,7 +32,13 @@ flowchart TD
     ExtractError --> Ready
 
     ExtractOK -->|Yes| Clean[Normalize and clean extracted text]
-    Clean --> AIRequest[Call AI analysis pipeline]
+    Clean --> ResumeCheck{Looks like a real resume?}
+    ResumeCheck -->|No| ResumeError[Return invalid resume error]
+    ResumeError --> Ready
+    ResumeCheck -->|Yes| NameCheck{File name follows name_course format?}
+    NameCheck -->|Yes| AIRequest[Call AI analysis pipeline]
+    NameCheck -->|No| NameSuggest[Attach rename suggestion to response]
+    NameSuggest --> AIRequest
   end
 
   subgraph AI["AI Analysis (Services)"]
@@ -53,6 +59,8 @@ flowchart TD
     Bundle --> Save[(Save analysis to history)]
     Save --> Respond[Return results to client]
     Respond --> Render[Display scores, skills, suggestions]
+    Respond --> SuggestName[Show file naming suggestion if needed]
+    SuggestName --> Render
     Render --> End
   end
 
@@ -68,6 +76,6 @@ flowchart TD
   classDef store fill:#123,stroke:#345,color:#fff;
 
   class Render,End ok;
-  class FileError,UpgradePrompt,ExtractError,AIError,NetError,ServerError err;
-  class Auth,FileCheck,LimitCheck,ExtractOK,AIStatus gate;
+  class FileError,UpgradePrompt,ExtractError,ResumeError,AIError,NetError,ServerError err;
+  class Auth,FileCheck,LimitCheck,ExtractOK,ResumeCheck,NameCheck,AIStatus gate;
   class StoredFile,Save store;

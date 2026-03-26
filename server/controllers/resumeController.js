@@ -68,6 +68,56 @@ function isLikelyResumeText(text = "", fileName = "", pageCount = 1) {
   return looksLikeResumeFileName && isShortPdf && isTextExtractionPoor;
 }
 
+function hasResumeCoreContent(text = "") {
+  const normalized = String(text || "").toLowerCase();
+  const minLengthMet = normalized.trim().length >= 200;
+  const contentKeywords = ["experience", "skills", "education"];
+  const keywordHits = contentKeywords.filter((keyword) => normalized.includes(keyword)).length;
+
+  return minLengthMet && keywordHits >= 2;
+}
+
+function toFileNameSlug(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_");
+}
+
+function getResumeFileNameSuggestion(fileName = "", userName = "") {
+  const originalFileName = String(fileName || "").trim();
+  const extension = String(originalFileName.match(/\.[^.]+$/)?.[0] || "").toLowerCase();
+
+  if (![".pdf", ".docx"].includes(extension)) {
+    return null;
+  }
+
+  const baseName = originalFileName.slice(0, -extension.length).trim();
+  const normalizedBaseName = toFileNameSlug(baseName);
+  const preferredPattern = /^[a-z0-9]+(?:_[a-z0-9]+)+$/;
+
+  if (preferredPattern.test(normalizedBaseName) && normalizedBaseName === baseName.toLowerCase()) {
+    return null;
+  }
+
+  const normalizedUserName = toFileNameSlug(userName) || "your_name";
+  const inferredCourse =
+    normalizedBaseName
+      .split("_")
+      .filter(Boolean)
+      .find((part) => /^[a-z]{2,}\d{0,4}$/i.test(part) && part !== normalizedUserName)
+    || "course";
+
+  const suggestedFileName = `${normalizedUserName}_${inferredCourse}${extension}`;
+
+  return {
+    message: `Your resume was accepted, but rename it to something like ${suggestedFileName} so it is easier to identify.`,
+    suggestedFileName
+  };
+}
+
 function generateResumeSummary(resumeText = "") {
   const normalizedText = String(resumeText || "").replace(/\r/g, "");
   const text = normalizedText.toLowerCase();
@@ -278,6 +328,7 @@ function normalizeSummaryPoints(summaryResponse, fallbackPoints = []) {
 
 exports.uploadResume = async (req, res) => {
   const filePath = req.file?.path || "";
+  const mimeType = String(req.file?.mimetype || "").toLowerCase();
 
   try {
     if (!filePath) {
@@ -286,14 +337,35 @@ exports.uploadResume = async (req, res) => {
       });
     }
 
-    const extraction = await extractResumeTextFromUpload(req.file);
-    const resumeText = String(extraction?.resumeText || "");
-
-    if (!isLikelyResumeText(resumeText, req.file.originalname, extraction?.pageCount || 1)) {
+    if (
+      ![
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ].includes(mimeType)
+    ) {
       safeUnlink(filePath);
       return res.status(400).json({
         code: "INVALID_RESUME",
-        error: "This file does not look like a resume. Please upload a valid resume PDF."
+        error: "Please upload a valid resume file"
+      });
+    }
+
+    const extraction = await extractResumeTextFromUpload(req.file);
+    const resumeText = String(extraction?.resumeText || "");
+    const fileNamingSuggestion = getResumeFileNameSuggestion(
+      req.file.originalname,
+      req.user?.name || req.user?.email || ""
+    );
+
+    if (
+      !isLikelyResumeText(resumeText, req.file.originalname, extraction?.pageCount || 1) ||
+      !hasResumeCoreContent(resumeText)
+    ) {
+      safeUnlink(filePath);
+      return res.status(400).json({
+        code: "INVALID_RESUME",
+        error: "This file does not appear to be a resume"
       });
     }
 
@@ -364,6 +436,7 @@ exports.uploadResume = async (req, res) => {
       strengthMeter,
       suggestions,
       suggestionProgress: resume.suggestionProgress || null,
+      fileNamingSuggestion,
       usage: {
         plan: req.user.plan,
         resumeUsageCount: req.user.resumeUsageCount,
@@ -383,7 +456,7 @@ exports.uploadResume = async (req, res) => {
 
     if (error.code === "UNSUPPORTED_FILE_TYPE") {
       return res.status(400).json({
-        error: "Only .pdf and .docx files are supported."
+        error: "Please upload a valid resume file"
       });
     }
 

@@ -11,13 +11,19 @@ const storage = multer.diskStorage({
   }
 });
 
-const allowedExtensions = new Set([".pdf", ".docx"]);
+const allowedExtensions = new Set([".pdf", ".doc", ".docx"]);
+const allowedMimeTypes = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+]);
 
 const fileFilter = (req, file, cb) => {
   const extension = path.extname(file.originalname || "").toLowerCase();
+  const mimeType = String(file.mimetype || "").toLowerCase();
 
-  if (!allowedExtensions.has(extension)) {
-    return cb(new Error("Only .pdf and .docx files are allowed"));
+  if (!allowedExtensions.has(extension) || !allowedMimeTypes.has(mimeType)) {
+    return cb(new Error("Please upload a valid resume file"));
   }
 
   return cb(null, true);

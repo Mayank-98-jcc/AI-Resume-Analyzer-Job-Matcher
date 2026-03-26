@@ -14,6 +14,83 @@ import {
 } from "react-icons/fa";
 import DashboardSidebar from "../components/DashboardSidebar";
 
+const allowedResumeTypes = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+];
+
+const VALIDATION_STATUS = {
+  IDLE: "idle",
+  VALID: "valid",
+  ERROR: "error"
+};
+
+const REPORT_PAGE = {
+  width: 210,
+  height: 297,
+  marginX: 18,
+  top: 18,
+  bottom: 18
+};
+
+const formatDisplayDate = (date) =>
+  new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "long",
+    timeStyle: "short"
+  }).format(date);
+
+const getAtsAssessment = (score) => {
+  if (score >= 85) {
+    return {
+      label: "Excellent",
+      summary:
+        "The resume demonstrates strong ATS readiness with broad keyword coverage and a well-aligned skill profile."
+    };
+  }
+
+  if (score >= 70) {
+    return {
+      label: "Strong",
+      summary:
+        "The resume shows good ATS compatibility, though a few targeted improvements could increase recruiter visibility."
+    };
+  }
+
+  if (score >= 50) {
+    return {
+      label: "Moderate",
+      summary:
+        "The resume has a reasonable foundation, but it would benefit from stronger keyword alignment and sharper positioning."
+    };
+  }
+
+  return {
+    label: "Needs Improvement",
+    summary:
+      "The resume currently needs structural and keyword improvements to perform more effectively in ATS screening."
+  };
+};
+
+const toTitleCase = (value = "") =>
+  value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const loadImageAsDataUrl = async (src) => {
+  const response = await fetch(src);
+  const blob = await response.blob();
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
 function Dashboard() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -32,7 +109,11 @@ function Dashboard() {
   const [file, setFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [result, setResult] = useState(null);
-  const [uploadError, setUploadError] = useState("");
+  const [validationStatus, setValidationStatus] = useState(VALIDATION_STATUS.IDLE);
+  const [validationMessage, setValidationMessage] = useState("");
+  const [fileNamingSuggestion, setFileNamingSuggestion] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [dropFlashStatus, setDropFlashStatus] = useState(VALIDATION_STATUS.IDLE);
   const [profileName, setProfileName] = useState("");
   const [subscription, setSubscription] = useState({
     plan: "free",
@@ -85,6 +166,7 @@ function Dashboard() {
   const strengthMeter = result?.strengthMeter || strengthData || null;
   const activeSuggestions = loadedSuggestions;
   const activeSuggestionProgress = loadedSuggestionProgress;
+  const canAnalyze = Boolean(file) && !uploading && validationStatus === VALIDATION_STATUS.VALID;
 
   const strengthMetrics = [
     { key: "formatting", label: "Formatting Score", color: "bg-cyan-400" },
@@ -166,14 +248,47 @@ function Dashboard() {
     }
   };
 
+  const clearSelectedFile = () => {
+    setFile(null);
+    setResult(null);
+    setValidationStatus(VALIDATION_STATUS.IDLE);
+    setValidationMessage("");
+    setFileNamingSuggestion(null);
+    setDropFlashStatus(VALIDATION_STATUS.IDLE);
+  };
+
+  const validateResumeFile = (candidateFile) => {
+    if (!candidateFile) {
+      clearSelectedFile();
+      return false;
+    }
+
+    setFile(candidateFile);
+    setResult(null);
+    setFileNamingSuggestion(null);
+    setDropFlashStatus(VALIDATION_STATUS.IDLE);
+
+    if (!allowedResumeTypes.includes(candidateFile.type)) {
+      setValidationStatus(VALIDATION_STATUS.ERROR);
+      setValidationMessage("❌ Please upload a valid resume (PDF or Word only)");
+      return false;
+    }
+
+    setValidationStatus(VALIDATION_STATUS.VALID);
+    setValidationMessage(" Resume ready to analyze");
+    return true;
+  };
+
   const uploadResume = async () => {
-    if (!file) {
-      alert("Please select a resume first");
+    if (!canAnalyze) {
+      setValidationStatus(VALIDATION_STATUS.ERROR);
+      setValidationMessage("❌ Please upload a valid resume (PDF or Word only)");
       return;
     }
 
     try {
-      setUploadError("");
+      setUploading(true);
+      setValidationMessage("Analyzing your resume...");
       const formData = new FormData();
       formData.append("resume", file);
       formData.append("userId", userId);
@@ -193,8 +308,11 @@ function Dashboard() {
       setRewrittenResume("");
       setRewriteError("");
       setCopyRewriteSuccess(false);
+      setFileNamingSuggestion(res.data?.fileNamingSuggestion || null);
       setIsUnlocked(true);
       setShowUnlockAnimation(true);
+      setValidationStatus(VALIDATION_STATUS.VALID);
+      setValidationMessage("✅ Resume uploaded successfully");
       if (res.data?.usage) {
         setSubscription((prev) => ({
           ...prev,
@@ -210,16 +328,18 @@ function Dashboard() {
     } catch (error) {
       console.error("Upload error:", error);
       if (handlePlanAccessError(error, "Upgrade to Pro to analyze more resumes")) {
-        setUploadError(error?.response?.data?.message || "Upgrade to Pro to analyze more resumes");
+        setValidationStatus(VALIDATION_STATUS.ERROR);
+        setValidationMessage(
+          error?.response?.data?.message || "❌ Please upload a valid resume (PDF or Word only)"
+        );
         return;
       }
       const apiError = error?.response?.data?.error || "";
-      const isInvalidResume = error?.response?.data?.code === "INVALID_RESUME";
-      setUploadError(
-        isInvalidResume
-          ? apiError || "This PDF is not a resume. Please upload a valid resume."
-          : "Upload failed. Please try again."
-      );
+      setValidationStatus(VALIDATION_STATUS.ERROR);
+      setFileNamingSuggestion(null);
+      setValidationMessage(apiError || "This file does not appear to be a resume");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -234,20 +354,233 @@ function Dashboard() {
     }
   }, [userId]);
 
-  const downloadReport = () => {
+  const downloadReport = async () => {
     if (!result) return;
 
-    const doc = new jsPDF();
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = REPORT_PAGE.width;
+    const pageHeight = REPORT_PAGE.height;
+    const contentWidth = pageWidth - REPORT_PAGE.marginX * 2;
+    const assessment = getAtsAssessment(Number(result.atsScore) || 0);
+    const reportDate = formatDisplayDate(new Date());
+    const candidateName = profileName?.trim() || "ResumeIQ User";
+    const skillList = result.skills?.length ? result.skills.join(", ") : "No skills were extracted.";
+    const missingSkillList = result.missingSkills?.length
+      ? result.missingSkills.join(", ")
+      : "No major missing skills were identified from the current analysis.";
+    const summaryPoints = resumeSummary?.length
+      ? resumeSummary
+      : [
+          `${candidateName}'s resume was assessed by ResumeIQ for ATS compatibility, keyword relevance, and presentation readiness.`,
+          assessment.summary,
+          result.skills?.length
+            ? `The profile currently highlights ${result.skills.length} extracted skills, with emphasis on ${result.skills.slice(0, 5).join(", ")}.`
+            : "The uploaded resume did not expose a wide enough skill inventory to create a stronger positioning summary."
+        ];
+    const sectionDetails = sectionChecklist.map(({ key, label }) => ({
+      label,
+      status: sectionAnalysis ? (sectionAnalysis[key] ? "Present" : "Missing") : "Not Assessed"
+    }));
+    const strengthDetails = strengthMetrics.map(({ key, label }) => ({
+      label,
+      value: strengthMeter?.[key]
+    }));
 
-    doc.text("AI Resume Analysis Report", 20, 20);
-    doc.text(`ATS Score: ${result.atsScore}%`, 20, 40);
+    let cursorY = REPORT_PAGE.top;
 
-    doc.text("Skills:", 20, 60);
-    doc.text(result.skills.join(", "), 20, 70);
+    const addFooter = () => {
+      const pageCount = doc.getNumberOfPages();
 
-    doc.text("Missing Skills:", 20, 90);
-    doc.text(result.missingSkills.join(", "), 20, 100);
+      for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+        doc.setPage(pageNumber);
+        doc.setDrawColor(226, 232, 240);
+        doc.line(REPORT_PAGE.marginX, pageHeight - 12, pageWidth - REPORT_PAGE.marginX, pageHeight - 12);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139);
+        doc.text("Generated by ResumeIQ", REPORT_PAGE.marginX, pageHeight - 7);
+        doc.text(`Page ${pageNumber} of ${pageCount}`, pageWidth - REPORT_PAGE.marginX, pageHeight - 7, {
+          align: "right"
+        });
+      }
+    };
 
+    const ensureSpace = (neededHeight = 10) => {
+      if (cursorY + neededHeight <= pageHeight - REPORT_PAGE.bottom) return;
+      doc.addPage();
+      cursorY = REPORT_PAGE.top;
+    };
+
+    const addParagraph = (text, options = {}) => {
+      const { fontSize = 11, color = [30, 41, 59], gap = 6, style = "normal" } = options;
+      if (!text) return;
+
+      doc.setFont("helvetica", style);
+      doc.setFontSize(fontSize);
+      doc.setTextColor(...color);
+      const lines = doc.splitTextToSize(text, contentWidth);
+      const textHeight = lines.length * (fontSize * 0.42 + 1.5);
+      ensureSpace(textHeight + gap);
+      doc.text(lines, REPORT_PAGE.marginX, cursorY);
+      cursorY += textHeight + gap;
+    };
+
+    const addSectionTitle = (title) => {
+      ensureSpace(12);
+      doc.setDrawColor(14, 116, 144);
+      doc.setLineWidth(0.8);
+      doc.line(REPORT_PAGE.marginX, cursorY, REPORT_PAGE.marginX + 18, cursorY);
+      cursorY += 5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(15, 23, 42);
+      doc.text(title, REPORT_PAGE.marginX, cursorY);
+      cursorY += 7;
+    };
+
+    const addBulletList = (items) => {
+      items.filter(Boolean).forEach((item) => {
+        const bulletLines = doc.splitTextToSize(item, contentWidth - 6);
+        const lineHeight = 5;
+        ensureSpace(bulletLines.length * lineHeight + 2);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+        doc.setTextColor(30, 41, 59);
+        doc.text("\u2022", REPORT_PAGE.marginX, cursorY);
+        doc.text(bulletLines, REPORT_PAGE.marginX + 5, cursorY);
+        cursorY += bulletLines.length * lineHeight + 1.5;
+      });
+      cursorY += 3;
+    };
+
+    const addKeyValueGrid = (items) => {
+      items.forEach(({ label, value }) => {
+        ensureSpace(8);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${label}:`, REPORT_PAGE.marginX, cursorY);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(51, 65, 85);
+        const valueLines = doc.splitTextToSize(String(value ?? "-"), contentWidth - 42);
+        doc.text(valueLines, REPORT_PAGE.marginX + 42, cursorY);
+        cursorY += Math.max(6, valueLines.length * 5);
+      });
+      cursorY += 2;
+    };
+
+    try {
+      const logoDataUrl = await loadImageAsDataUrl("/image1.png");
+      doc.addImage(logoDataUrl, "PNG", REPORT_PAGE.marginX, cursorY, 18, 18);
+    } catch (error) {
+      console.error("Unable to load ResumeIQ logo for PDF:", error);
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(15, 23, 42);
+    doc.text("ResumeIQ", REPORT_PAGE.marginX + 24, cursorY + 8);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Formal ATS Resume Assessment Report", REPORT_PAGE.marginX + 24, cursorY + 14);
+
+    doc.setDrawColor(14, 116, 144);
+    doc.setFillColor(240, 249, 255);
+    doc.roundedRect(pageWidth - 58, cursorY, 40, 18, 3, 3, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(8, 47, 73);
+    doc.text(`${result.atsScore}%`, pageWidth - 38, cursorY + 8, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("ATS Score", pageWidth - 38, cursorY + 14, { align: "center" });
+
+    cursorY += 28;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(REPORT_PAGE.marginX, cursorY, pageWidth - REPORT_PAGE.marginX, cursorY);
+    cursorY += 10;
+
+    addKeyValueGrid([
+      { label: "Candidate Name", value: candidateName },
+      { label: "Assessment Rating", value: assessment.label },
+      { label: "Report Generated", value: reportDate },
+      { label: "Resume File", value: file?.name || result.fileName || "Uploaded resume" },
+      { label: "Subscription Plan", value: toTitleCase(currentPlan) },
+      {
+        label: "Resume Percentile",
+        value: rankPercentile !== null ? `${rankPercentile}%` : "Not available"
+      }
+    ]);
+
+    addSectionTitle("Executive Summary");
+    addParagraph(
+      `${candidateName}'s resume has been reviewed by ResumeIQ to evaluate applicant tracking system compatibility, keyword alignment, and overall presentation quality. The report indicates an ATS score of ${result.atsScore}%, which is classified as ${assessment.label.toLowerCase()}. ${assessment.summary}`,
+      { gap: 4 }
+    );
+    addBulletList(summaryPoints);
+
+    addSectionTitle("Candidate Profile Overview");
+    addKeyValueGrid([
+      { label: "Skills Identified", value: result.skills?.length || 0 },
+      { label: "Missing Skills Flagged", value: result.missingSkills?.length || 0 },
+      {
+        label: "Report Focus",
+        value: "ATS readiness, skills coverage, resume structure, and improvement priorities"
+      }
+    ]);
+    addParagraph(
+      result.skills?.length
+        ? `The uploaded resume presents a skills inventory centered on ${result.skills.slice(0, 6).join(", ")}. This gives the profile a measurable base for ATS matching and recruiter search visibility.`
+        : "The uploaded resume did not yield a robust list of identifiable skills, which may limit ATS keyword matching and search relevance."
+    );
+
+    addSectionTitle("Skills Inventory");
+    addParagraph(skillList);
+
+    addSectionTitle("Improvement Priorities");
+    addParagraph(missingSkillList);
+    if (activeSuggestions?.length) {
+      addBulletList(activeSuggestions);
+    } else {
+      addParagraph(
+        "No additional AI suggestions are currently loaded in the dashboard. The report still reflects the extracted ATS findings available at export time."
+      );
+    }
+
+    addSectionTitle("Resume Quality Metrics");
+    addKeyValueGrid(
+      strengthDetails.map(({ label, value }) => ({
+        label,
+        value: Number.isFinite(value) ? `${value}%` : "Not available"
+      }))
+    );
+
+    addSectionTitle("Section Coverage Review");
+    addKeyValueGrid(
+      sectionDetails.map(({ label, status }) => ({
+        label,
+        value: status
+      }))
+    );
+
+    if (careerSuggestions?.length) {
+      addSectionTitle("Career Direction Suggestions");
+      addParagraph(
+        `Based on the extracted skill set, ResumeIQ identified the following role directions as potentially suitable for ${candidateName}.`
+      );
+      addBulletList(careerSuggestions);
+    }
+
+    addSectionTitle("Professional Recommendation");
+    addParagraph(
+      result.missingSkills?.length
+        ? `To strengthen this resume further, ResumeIQ recommends refining the content with clearer role-specific keywords, expanding evidence of impact through quantified achievements, and incorporating the most relevant missing skills where they accurately reflect the candidate's experience.`
+        : `This resume already demonstrates healthy keyword coverage. The next improvement step should focus on sharpening achievement-driven language, strengthening measurable outcomes, and tailoring the document to each target role for higher conversion.`
+    );
+
+    addFooter();
     doc.save("resume-report.pdf");
   };
 
@@ -452,6 +785,10 @@ function Dashboard() {
     setRankPercentile(null);
     setAnimatedRankPercentile(0);
     setIsUnlocked(false);
+    setValidationStatus(VALIDATION_STATUS.IDLE);
+    setValidationMessage("");
+    setUploading(false);
+    setDropFlashStatus(VALIDATION_STATUS.IDLE);
     previousRankRef.current = 0;
   }, [userId]);
 
@@ -612,6 +949,16 @@ function Dashboard() {
     return () => window.clearTimeout(timer);
   }, [copyRewriteSuccess]);
 
+  useEffect(() => {
+    if (dropFlashStatus === VALIDATION_STATUS.IDLE) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setDropFlashStatus(VALIDATION_STATUS.IDLE);
+    }, 420);
+
+    return () => window.clearTimeout(timer);
+  }, [dropFlashStatus]);
+
   return (
     <div className="dashboard-shell min-h-screen text-white">
       <div className="dashboard-glow dashboard-glow--one" />
@@ -712,10 +1059,10 @@ function Dashboard() {
 
           <section id="dashboard-upload-section" className={`${glassCardClass} mt-8 scroll-mt-24`}>
             <h2 className="text-xl font-semibold">Upload Resume</h2>
-            <p className="mt-1 text-sm text-slate-300">Choose file first, then click Analyze Resume</p>
+            <p className="mt-1 text-sm text-slate-300">Choose a PDF or Word resume, then click Analyze Resume</p>
 
             <div
-              className={`dashboard-upload-zone mt-5 ${dragActive ? "dashboard-upload-zone--active" : ""}`}
+              className={`dashboard-upload-zone mt-5 ${dragActive ? "dashboard-upload-zone--active" : ""} ${validationStatus === VALIDATION_STATUS.ERROR ? "dashboard-upload-zone--error" : ""} ${validationStatus === VALIDATION_STATUS.VALID ? "dashboard-upload-zone--success" : ""} ${dropFlashStatus === VALIDATION_STATUS.ERROR ? "dashboard-upload-zone--flash-error" : ""}`}
               onDragOver={(e) => {
                 e.preventDefault();
                 setDragActive(true);
@@ -726,8 +1073,10 @@ function Dashboard() {
                 setDragActive(false);
                 const droppedFile = e.dataTransfer.files?.[0] || null;
                 if (droppedFile) {
-                  setUploadError("");
-                  setFile(droppedFile);
+                  const isAccepted = validateResumeFile(droppedFile);
+                  if (!isAccepted) {
+                    setDropFlashStatus(VALIDATION_STATUS.ERROR);
+                  }
                 }
               }}
             >
@@ -737,37 +1086,71 @@ function Dashboard() {
                   CHOOSE FILES
                   <input
                     type="file"
-                    accept=".pdf,.docx"
+                    accept=".pdf,.doc,.docx"
                     onChange={(e) => {
                       const selectedFile = e.target.files?.[0] || null;
-                      if (selectedFile) {
-                        setUploadError("");
-                        setFile(selectedFile);
-                      }
+                      validateResumeFile(selectedFile);
                     }}
                     className="hidden"
                   />
                 </label>
-                <p className="dashboard-upload-zone__hint">or drop files here</p>
+                <p className="dashboard-upload-zone__hint">or drop PDF, DOC, or DOCX files here</p>
               </div>
             </div>
 
             {file && (
-              <div className="dashboard-file mt-4">
-                <p className="font-medium text-cyan-200">{file.name}</p>
-                <p className="text-xs text-slate-300">Ready to analyze</p>
+              <div className={`dashboard-file mt-4 ${validationStatus === VALIDATION_STATUS.ERROR ? "dashboard-file--error" : "dashboard-file--success"}`}>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    {validationStatus === VALIDATION_STATUS.ERROR ? (
+                      <FaExclamationTriangle className="mt-1 text-rose-300" />
+                    ) : (
+                      <FaCheckCircle className="mt-1 text-emerald-300 dashboard-check-pop" />
+                    )}
+                    <p className="font-medium text-slate-100">{file.name}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearSelectedFile}
+                    className="dashboard-file-remove"
+                    aria-label="Remove selected file"
+                  >
+                    x
+                  </button>
+                </div>
               </div>
             )}
 
-            <button onClick={uploadResume} className="dashboard-btn-primary mt-5">
-              Analyze Resume
-            </button>
-
-            {uploadError && (
-              <div className="dashboard-upload-error mt-4" role="alert">
-                {uploadError}
+            {validationStatus !== VALIDATION_STATUS.IDLE && (
+              <div
+                className={`mt-4 ${validationStatus === VALIDATION_STATUS.ERROR ? "dashboard-upload-error" : "dashboard-upload-success"}`}
+                role={validationStatus === VALIDATION_STATUS.ERROR ? "alert" : "status"}
+              >
+                {validationStatus === VALIDATION_STATUS.ERROR ? (
+                  <FaExclamationTriangle />
+                ) : (
+                  <FaCheckCircle className="dashboard-check-pop" />
+                )}
+                <span>{validationMessage}</span>
               </div>
             )}
+
+            {fileNamingSuggestion?.message && validationStatus === VALIDATION_STATUS.VALID && (
+              <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                {fileNamingSuggestion.message}
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                onClick={uploadResume}
+                disabled={!canAnalyze}
+                className="dashboard-btn-primary inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {uploading && <span className="dashboard-inline-spinner" aria-hidden="true" />}
+                {uploading ? "Analyzing your resume..." : "Analyze Resume"}
+              </button>
+            </div>
           </section>
 
           {rankPercentile !== null && (

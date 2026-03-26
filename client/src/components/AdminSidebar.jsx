@@ -28,7 +28,7 @@ function AdminSidebar() {
 
   return (
     <aside
-      className={`hidden min-h-screen shrink-0 border-r border-slate-200 bg-[linear-gradient(180deg,#0f172a_0%,#111827_42%,#1e293b_100%)] py-6 text-white transition-all duration-300 lg:flex ${
+      className={`admin-sidebar hidden min-h-screen shrink-0 border-r border-slate-200 bg-[linear-gradient(180deg,#0f172a_0%,#111827_42%,#1e293b_100%)] py-6 text-white transition-all duration-300 lg:flex ${
         collapsed ? "w-20 px-3" : "w-72 px-5"
       }`}
     >
