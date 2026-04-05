@@ -1,6 +1,8 @@
 const Resume = require("../models/Resume");
 const User = require("../models/User");
 const Activity = require("../models/Activity");
+const Support = require("../models/Support");
+const SupportMessage = require("../models/SupportMessage");
 const ShortlistedCandidate = require("../models/ShortlistedCandidate");
 const fs = require("fs");
 const path = require("path");
@@ -455,6 +457,75 @@ exports.getAdminActivity = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch admin activity",
+      error: error.message
+    });
+  }
+};
+
+exports.getAllFeedback = async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const unreadOnly = String(req.query.unreadOnly || "").trim().toLowerCase() === "true";
+    const filter = unreadOnly ? { isRead: false } : {};
+
+    const [feedback, unreadCount] = await Promise.all([
+      Support.find(filter)
+        .sort({ lastMessageAt: -1 })
+        .limit(limit)
+        .populate("userId", "name email"),
+      Support.countDocuments({ isRead: false })
+    ]);
+
+    const latestMessages = await SupportMessage.find({
+      sessionId: { $in: feedback.map((item) => item._id) },
+      sender: "user"
+    })
+      .sort({ createdAt: -1 })
+      .select("sessionId message createdAt");
+
+    const latestMessageBySession = new Map();
+    latestMessages.forEach((item) => {
+      const key = toObjectIdString(item.sessionId);
+      if (!latestMessageBySession.has(key)) {
+        latestMessageBySession.set(key, item);
+      }
+    });
+
+    return res.json({
+      data: feedback.map((item) => ({
+        _id: item._id,
+        userId: item.userId?._id || null,
+        userName: item.userId?.name || "",
+        email: item.email || item.userId?.email || "",
+        category: item.category,
+        message: latestMessageBySession.get(toObjectIdString(item._id))?.message || item.lastMessage || "",
+        isRead: Boolean(item.isRead),
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        lastMessageAt: item.lastMessageAt
+      })),
+      meta: {
+        unreadCount
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch feedback",
+      error: error.message
+    });
+  }
+};
+
+exports.markFeedbackAsRead = async (req, res) => {
+  try {
+    await Support.updateMany({ isRead: false }, { $set: { isRead: true } });
+
+    return res.json({
+      message: "Feedback marked as read"
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to update feedback status",
       error: error.message
     });
   }

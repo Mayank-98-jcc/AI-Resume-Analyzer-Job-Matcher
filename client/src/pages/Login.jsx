@@ -3,7 +3,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import API from "../services/api";
 import BrandMark from "../components/BrandMark";
-import { ensureGoogleIdentityInitialized, renderGoogleButton, waitForGoogleIdentity } from "../utils/googleIdentity";
+import {
+  ensureGoogleIdentityInitialized,
+  mountResponsiveGoogleButton,
+  waitForGoogleIdentity
+} from "../utils/googleIdentity";
 
 function Login() {
   const navigate = useNavigate();
@@ -58,6 +62,7 @@ function Login() {
     if (!googleClientId) return;
 
     let cancelled = false;
+    let cleanupGoogleButton = () => {};
 
     const handler = async (response) => {
       try {
@@ -89,13 +94,12 @@ function Login() {
 
         ensureGoogleIdentityInitialized(googleClientId);
 
-        renderGoogleButton(googleButtonRef.current, {
+        cleanupGoogleButton = mountResponsiveGoogleButton(googleButtonRef.current, {
           type: "standard",
           theme: "outline",
           text: "continue_with",
           shape: "pill",
-          size: "large",
-          width: "320"
+          size: "large"
         });
       } catch {
         if (!cancelled) {
@@ -108,6 +112,7 @@ function Login() {
 
     return () => {
       cancelled = true;
+      cleanupGoogleButton();
       if (globalThis.__resumeiq_gsi_onCredential === handler) {
         globalThis.__resumeiq_gsi_onCredential = null;
       }
@@ -170,12 +175,12 @@ function Login() {
   };
 
   return (
-    <div className="login-shell min-h-screen flex items-center justify-center p-6 text-white">
+    <div className="login-shell auth-shell min-h-screen flex items-center justify-center p-4 text-white sm:p-6">
       <div className="login-blob login-blob--one" />
       <div className="login-blob login-blob--two" />
       <div className="login-blob login-blob--three" />
 
-      <div className={`login-card auth-route-card w-full max-w-md p-8 sm:p-10 ${isRouteSwitching ? "is-route-flipping" : ""}`}>
+      <div className={`login-card auth-route-card auth-card w-full max-w-md p-5 sm:p-8 md:p-10 ${isRouteSwitching ? "is-route-flipping" : ""}`}>
         <BrandMark compact center />
 
         <h2 className="text-3xl font-bold text-center tracking-tight">Welcome Back</h2>
@@ -249,7 +254,7 @@ function Login() {
           </button>
 
           {googleClientId ? (
-            <div className="flex justify-center">
+            <div className="auth-google-wrap flex justify-center">
               <div ref={googleButtonRef} />
             </div>
           ) : null}

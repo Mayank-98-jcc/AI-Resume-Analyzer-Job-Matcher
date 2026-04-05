@@ -359,25 +359,6 @@ function AdminSettings() {
             </AnimatePresence>
           </Motion.section>
 
-          <Motion.section
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.35, delay: 0.12, ease: "easeOut" }}
-            className="admin-settings-panel rounded-[36px] border border-white/10 p-6 shadow-[0_24px_70px_rgba(2,6,23,0.45)] backdrop-blur-xl"
-          >
-            <p className="text-lg font-semibold text-white">What works now</p>
-            <div className="mt-5 space-y-3 text-sm text-slate-300">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                Theme changes update the admin shell live and persist across reloads.
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                Notification refresh speed changes the polling interval used by the bell.
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                Motion and visual effect settings tune the overall feel of the admin workspace.
-              </div>
-            </div>
-          </Motion.section>
         </div>
       </div>
     </AdminLayout>

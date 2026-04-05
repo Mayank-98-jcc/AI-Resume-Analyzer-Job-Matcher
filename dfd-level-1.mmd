@@ -1,0 +1,95 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#ffffff",
+    "primaryColor": "#f8fafc",
+    "primaryTextColor": "#0f172a",
+    "primaryBorderColor": "#334155",
+    "lineColor": "#475569",
+    "secondaryColor": "#eef2ff",
+    "tertiaryColor": "#f8fafc",
+    "edgeLabelBackground": "#ffffff",
+    "fontSize": "22px"
+  },
+  "themeCSS": ".mermaid, .mermaid svg, svg { background: #ffffff !important; } .label, .nodeLabel, .edgeLabel, .label text, tspan { fill: #0f172a !important; font-size: 20px !important; } .cluster rect { rx: 14 !important; ry: 14 !important; stroke-width: 1.5px !important; } .node rect, .node polygon, .node path, .node circle { stroke-width: 1.8px !important; }",
+  "flowchart": {
+    "nodeSpacing": 42,
+    "rankSpacing": 60,
+    "curve": "linear",
+    "useMaxWidth": true
+  }
+}}%%
+flowchart TB
+  %% ResumeIQ Level 1 DFD
+  %% Arranged for clean A4 portrait export
+
+  USER[User]
+  ADMIN[Admin]
+
+  subgraph Core["ResumeIQ Level 1 Processes"]
+    direction TB
+    P1((1.0 User Access))
+    P2((2.0 Resume Upload<br/>& Analysis))
+    P3((3.0 AI Features<br/>& Job Match))
+    P4((4.0 Billing & Support))
+    P5((5.0 Admin Review))
+  end
+
+  subgraph Stores["Data Stores"]
+    direction TB
+    D1[(D1 User Data)]
+    D2[(D2 Resume Reports)]
+    D3[(D3 Billing Data)]
+    D4[(D4 Feedback Logs)]
+  end
+
+  subgraph Services["External Services"]
+    direction TB
+    AI[AI Service]
+    PAY[Payment<br/>Gateway]
+    MAIL[Email Service]
+  end
+
+  USER -->|Login / signup| P1
+  P1 -->|Access granted| USER
+  P1 <--> D1
+
+  USER -->|Resume file| P2
+  P2 -->|ATS score and<br/>suggestions| USER
+  P2 <--> D2
+
+  USER -->|JD or AI request| P3
+  P3 -->|Match result /<br/>rewrite| USER
+  P3 <--> D2
+  P3 -->|Prompt and context| AI
+  AI -->|AI response| P3
+
+  USER -->|Upgrade or feedback| P4
+  P4 -->|Payment status /<br/>support reply| USER
+  P4 <--> D3
+  P4 <--> D4
+  P4 -->|Payment request| PAY
+  PAY -->|Verification| P4
+  P4 -->|Notification| MAIL
+
+  ADMIN -->|Admin actions| P5
+  P5 -->|Reports and control| ADMIN
+  P5 --> D1
+  P5 --> D2
+  P5 --> D3
+  P5 --> D4
+
+  P1 --> P2
+  P2 --> P3
+  P3 --> P4
+  P4 --> P5
+
+  classDef entity fill:#f8fafc,stroke:#475569,color:#0f172a,stroke-width:1.8px;
+  classDef process fill:#e0ecff,stroke:#3b82f6,color:#0f172a,stroke-width:2px;
+  classDef store fill:#ede9fe,stroke:#7c3aed,color:#312e81,stroke-width:1.8px;
+  classDef service fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:1.8px;
+
+  class USER,ADMIN entity;
+  class P1,P2,P3,P4,P5 process;
+  class D1,D2,D3,D4 store;
+  class AI,PAY,MAIL service;

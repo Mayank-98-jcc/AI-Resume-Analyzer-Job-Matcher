@@ -1,0 +1,76 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#ffffff",
+    "primaryColor": "#ffffff",
+    "primaryTextColor": "#0f172a",
+    "primaryBorderColor": "#1e293b",
+    "lineColor": "#0f172a",
+    "secondaryColor": "#f8fafc",
+    "tertiaryColor": "#f8fafc",
+    "fontSize": "28px"
+  },
+  "themeCSS": ".mermaid, .mermaid svg, svg { background: #ffffff !important; } .label, .nodeLabel, .edgeLabel, .messageText, .classTitle, .classText, .label text, .classLabel text, tspan { font-size: 28px !important; fill: #0f172a !important; } .edgeLabel { font-weight: 700 !important; } .relationshipLabelBox, .edgeLabel rect { fill: #ffffff !important; stroke: #ffffff !important; opacity: 1 !important; } .relation, .relation path, .flowchart-link, .edgePath path, marker path { stroke: #0f172a !important; stroke-width: 2.8px !important; fill: none; } marker path { fill: #0f172a !important; } .classBox, .node rect { stroke-width: 2px !important; }",
+  "class": {
+    "useMaxWidth": true
+  }
+}}%%
+classDiagram
+  direction TB
+
+  class User {
+    +name
+    +email
+    +role
+    +plan
+  }
+
+  class Resume {
+    +fileName
+    +skills
+    +atsScore
+    +suggestions
+  }
+
+  class Support {
+    +category
+    +status
+    +lastMessage
+  }
+
+  class AuthController {
+    +registerUser()
+    +loginUser()
+    +verifyOtp()
+  }
+
+  class ResumeController {
+    +uploadResume()
+    +getHistory()
+    +generateSummary()
+  }
+
+  class BillingController {
+    +createOrder()
+    +verifyPayment()
+    +getUserBilling()
+  }
+
+  class SupportController {
+    +createSupportMessage()
+    +getUserFeedbackHistory()
+  }
+
+  class GeminiService {
+    +generateSummary()
+    +compareResumeWithJobDescription()
+  }
+
+  User "1" --> "0..*" Resume : uploads
+  User "1" --> "0..*" Support : creates
+
+  AuthController ..> User : manages
+  ResumeController ..> Resume : analyzes
+  ResumeController ..> GeminiService : uses
+  BillingController ..> User : updates plan
+  SupportController ..> Support : manages

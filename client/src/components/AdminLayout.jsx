@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion as Motion } from "framer-motion";
-import { Bell, ChevronDown, Lock, LogOut, Search, Settings2 } from "lucide-react";
+import { Bell, ChevronDown, Lock, LogOut, MessageSquareMore, Search, Settings2 } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
@@ -47,6 +47,8 @@ function AdminLayout({ title, subtitle, children }) {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [feedbackNotifications, setFeedbackNotifications] = useState([]);
+  const [feedbackUnreadCount, setFeedbackUnreadCount] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [notificationsError, setNotificationsError] = useState("");
   const [adminPreferences, setAdminPreferences] = useState(() => loadAdminPreferences());
@@ -124,14 +126,21 @@ function AdminLayout({ title, subtitle, children }) {
 
       try {
         setNotificationsError("");
-        const res = await API.get("/admin/activity", { params: { limit: 6 } });
+        const [activityRes, feedbackRes] = await Promise.all([
+          API.get("/admin/activity", { params: { limit: 6 } }),
+          API.get("/admin/feedback", { params: { limit: 4, unreadOnly: true } })
+        ]);
         if (!active) return;
-        setNotifications(Array.isArray(res.data) ? res.data : []);
+        setNotifications(Array.isArray(activityRes.data) ? activityRes.data : []);
+        setFeedbackNotifications(Array.isArray(feedbackRes.data?.data) ? feedbackRes.data.data : []);
+        setFeedbackUnreadCount(Number(feedbackRes.data?.meta?.unreadCount ?? 0));
       } catch (error) {
         if (!active) return;
         console.error("Admin notifications fetch error:", error);
         setNotificationsError(error?.response?.data?.message || "Unable to load notifications.");
         setNotifications([]);
+        setFeedbackNotifications([]);
+        setFeedbackUnreadCount(0);
       } finally {
         if (active && !silent) {
           setNotificationsLoading(false);
@@ -160,11 +169,13 @@ function AdminLayout({ title, subtitle, children }) {
   const unreadCount = useMemo(() => {
     const lastSeenAt = notificationsLastSeenAt ? new Date(notificationsLastSeenAt).getTime() : 0;
 
-    return notifications.filter((item) => {
+    const activityUnreadCount = notifications.filter((item) => {
       const createdAt = item?.createdAt ? new Date(item.createdAt).getTime() : 0;
       return createdAt > lastSeenAt;
     }).length;
-  }, [notifications, notificationsLastSeenAt]);
+
+    return activityUnreadCount + feedbackUnreadCount;
+  }, [feedbackUnreadCount, notifications, notificationsLastSeenAt]);
 
   const handleGlobalSearchSubmit = (event) => {
     event.preventDefault();
@@ -218,6 +229,26 @@ function AdminLayout({ title, subtitle, children }) {
     markNotificationsAsSeen();
     setNotificationsOpen(false);
     navigate("/admin/activity");
+  };
+
+  const handleOpenFeedback = async () => {
+    try {
+      if (feedbackUnreadCount > 0) {
+        await API.patch("/admin/feedback/read");
+      }
+    } catch (error) {
+      console.error("Mark feedback read error:", error);
+    } finally {
+      setFeedbackUnreadCount(0);
+      setFeedbackNotifications((current) =>
+        current.map((item) => ({
+          ...item,
+          isRead: true
+        }))
+      );
+      setNotificationsOpen(false);
+      navigate("/admin");
+    }
   };
 
   const renderTitle = () => {
@@ -304,7 +335,7 @@ function AdminLayout({ title, subtitle, children }) {
                         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                           <div>
                             <p className="text-sm font-semibold text-white">Notifications</p>
-                            <p className="text-xs text-slate-400">Latest admin activity</p>
+                            <p className="text-xs text-slate-400">Latest admin activity and user feedback</p>
                           </div>
                           <button
                             type="button"
@@ -324,8 +355,46 @@ function AdminLayout({ title, subtitle, children }) {
                             <div className="px-3 py-5 text-sm text-rose-200">{notificationsError}</div>
                           ) : null}
 
-                          {!notificationsLoading && !notificationsError && notifications.length === 0 ? (
+                          {!notificationsLoading && !notificationsError && notifications.length === 0 && feedbackNotifications.length === 0 ? (
                             <div className="px-3 py-5 text-sm text-slate-400">No notifications yet.</div>
+                          ) : null}
+
+                          {!notificationsLoading && !notificationsError && feedbackNotifications.length > 0 ? (
+                            <div className="mb-2">
+                              <div className="flex items-center justify-between px-3 py-2">
+                                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                  Feedback
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={handleOpenFeedback}
+                                  className="text-xs font-semibold text-cyan-200 transition hover:text-cyan-100"
+                                >
+                                  Open
+                                </button>
+                              </div>
+
+                              {feedbackNotifications.map((item) => (
+                                <button
+                                  key={item._id}
+                                  type="button"
+                                  onClick={handleOpenFeedback}
+                                  className="mb-1 flex w-full flex-col gap-2 rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.05] px-3 py-3 text-left transition hover:bg-cyan-300/[0.09]"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-100">
+                                      <span className="inline-flex items-center gap-1">
+                                        <MessageSquareMore size={12} />
+                                        {item.category}
+                                      </span>
+                                    </span>
+                                    <span className="text-xs text-slate-500">{formatRelativeTime(item.createdAt)}</span>
+                                  </div>
+                                  <p className="line-clamp-2 text-sm font-semibold text-white">{item.message}</p>
+                                  <p className="text-xs text-slate-400">{item.email || item.userName || "User"}</p>
+                                </button>
+                              ))}
+                            </div>
                           ) : null}
 
                           {!notificationsLoading && !notificationsError

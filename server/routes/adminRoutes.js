@@ -9,6 +9,8 @@ const {
   filterResumesByRole,
   getAdminAnalytics,
   getAdminActivity,
+  getAllFeedback,
+  markFeedbackAsRead,
   getShortlistedCandidates,
   addShortlistedCandidate,
   removeShortlistedCandidate
@@ -23,6 +25,8 @@ router.get("/stats", requireAuth, requireAdmin, getAdminStats);
 router.get("/filter", requireAuth, requireAdmin, filterResumesByRole);
 router.get("/analytics", requireAuth, requireAdmin, getAdminAnalytics);
 router.get("/activity", requireAuth, requireAdmin, getAdminActivity);
+router.get("/feedback", requireAuth, requireAdmin, getAllFeedback);
+router.patch("/feedback/read", requireAuth, requireAdmin, markFeedbackAsRead);
 router.get("/shortlist", requireAuth, requireAdmin, getShortlistedCandidates);
 router.post("/shortlist", requireAuth, requireAdmin, addShortlistedCandidate);
 router.delete("/shortlist/:resumeId", requireAuth, requireAdmin, removeShortlistedCandidate);

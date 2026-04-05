@@ -91,6 +91,67 @@ const loadImageAsDataUrl = async (src) => {
   });
 };
 
+const parseRewriteSections = (text = "") => {
+  const source = String(text || "").trim();
+
+  if (!source) {
+    return [];
+  }
+
+  const headingMap = {
+    "professional summary": "Professional Summary",
+    "what to improve": "What To Improve",
+    "suggested bullet points": "Suggested Bullet Points",
+    "skills to highlight": "Skills To Highlight",
+    "improved bullet points": "Suggested Bullet Points",
+    "skills section": "Skills To Highlight"
+  };
+
+  const lines = source.split("\n");
+  const sections = [];
+  let currentSection = {
+    title: "Improved Resume Draft",
+    content: []
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim().replace(/\*\*/g, "");
+    const normalized = trimmed.replace(/:\s*$/, "").toLowerCase();
+
+    if (headingMap[normalized]) {
+      if (currentSection.content.length || currentSection.title !== "Improved Resume Draft") {
+        sections.push({
+          ...currentSection,
+          content: currentSection.content.filter(Boolean)
+        });
+      }
+
+      currentSection = {
+        title: headingMap[normalized],
+        content: []
+      };
+      return;
+    }
+
+    if (trimmed) {
+      currentSection.content.push(
+        trimmed
+          .replace(/^(professional summary|what to improve|suggested bullet points|skills to highlight)\s*:\s*/i, "")
+          .trim()
+      );
+    }
+  });
+
+  if (currentSection.content.length || currentSection.title !== "Improved Resume Draft") {
+    sections.push({
+      ...currentSection,
+      content: currentSection.content.filter(Boolean)
+    });
+  }
+
+  return sections.filter((section) => section.content.length);
+};
+
 function Dashboard() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -189,6 +250,7 @@ function Dashboard() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
   const displayName = profileName || "there";
+  const parsedRewriteSections = parseRewriteSections(rewrittenResume);
 
   const openUpgradePrompt = (message, requiredPlan = "pro") => {
     setUpgradePrompt({
@@ -657,7 +719,13 @@ function Dashboard() {
         ? res.data.summary
         : String(res.data?.summary || "")
             .split("\n")
-            .map((line) => line.replace(/^[\s\-*•\d.]+/, "").trim())
+            .map((line) =>
+              line
+                .replace(/^[\s\-*•\d.]+/, "")
+                .replace(/\*\*/g, "")
+                .replace(/^(professional summary|headline)\s*:\s*/i, "")
+                .trim()
+            )
             .filter(Boolean)
             .slice(0, 4);
 
@@ -739,14 +807,19 @@ function Dashboard() {
         resumeText: sourceText
       });
 
-      setRewrittenResume(String(res.data?.rewrittenResume || "").trim());
+      setRewrittenResume(String(res.data?.data || res.data?.rewrittenResume || "").trim());
     } catch (error) {
       console.error("Resume rewrite error:", error);
+      console.log(error.response?.data);
       if (handlePlanAccessError(error, "Upgrade to Premium to access AI Resume Rewrite.")) {
         setRewriteError(error?.response?.data?.message || "Upgrade to Premium to access AI Resume Rewrite.");
         return;
       }
-      setRewriteError("Unable to rewrite resume right now.");
+      setRewriteError(
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        "Unable to rewrite resume right now."
+      );
       setRewrittenResume("");
     } finally {
       setRewriteLoading(false);
@@ -1506,9 +1579,39 @@ function Dashboard() {
                       </button>
                     </div>
 
-                    <pre className="mt-4 whitespace-pre-wrap break-words font-sans text-sm leading-7 text-slate-100">
-                      {rewrittenResume}
-                    </pre>
+                    <p className="mt-3 rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+                      This draft is based on your uploaded resume. In "Suggested Bullet Points", you will see stronger replacements for weak or unclear lines from your current resume, or clear guidance about what bullet points you still need to add.
+                    </p>
+
+                    <div className="mt-4 space-y-5">
+                      {parsedRewriteSections.length ? (
+                        parsedRewriteSections.map((section) => (
+                          <div key={section.title} className="rounded-lg border border-white/8 bg-white/[0.03] p-4">
+                            <h4 className="text-base font-semibold text-cyan-100">{section.title}</h4>
+                            <div className="mt-3 space-y-3 text-sm leading-7 text-slate-100">
+                              {section.content.map((item, index) => {
+                                const isBullet = item.startsWith("- ");
+
+                                if (isBullet) {
+                                  return (
+                                    <div key={`${section.title}-${index}`} className="flex gap-2">
+                                      <span className="mt-[2px] text-cyan-200">•</span>
+                                      <span>{item.replace(/^- /, "")}</span>
+                                    </div>
+                                  );
+                                }
+
+                                return <p key={`${section.title}-${index}`}>{item}</p>;
+                              })}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-7 text-slate-100">
+                          {rewrittenResume}
+                        </pre>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-slate-300">

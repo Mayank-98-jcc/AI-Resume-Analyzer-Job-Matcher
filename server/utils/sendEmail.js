@@ -67,13 +67,20 @@ function getTransporter() {
   return { transporter, from };
 }
 
-const sendEmail = async (to, subject, text) => {
+const sendEmail = async (to, subject, text, html) => {
   const mode = String(process.env.EMAIL_MODE || "").trim().toLowerCase();
   if (mode === "console") {
     console.log("\n--- EMAIL (console mode) ---");
     console.log("To:", to);
     console.log("Subject:", subject);
-    console.log(text);
+    if (text) {
+      console.log("Text:");
+      console.log(text);
+    }
+    if (html) {
+      console.log("HTML:");
+      console.log(html);
+    }
     console.log("--- END EMAIL ---\n");
     return;
   }
@@ -82,7 +89,13 @@ const sendEmail = async (to, subject, text) => {
   }
 
   const { transporter, from } = getTransporter();
-  await transporter.sendMail({ from, to, subject, text });
+  await transporter.sendMail({
+    from,
+    to,
+    subject,
+    text: text || undefined,
+    html: html || undefined
+  });
 };
 
 module.exports = sendEmail;

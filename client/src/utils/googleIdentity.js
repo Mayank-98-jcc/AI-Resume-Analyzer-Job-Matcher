@@ -44,3 +44,43 @@ export function renderGoogleButton(container, options) {
   return true;
 }
 
+export function mountResponsiveGoogleButton(container, options = {}) {
+  if (!container) return () => {};
+
+  let frameId = 0;
+  let resizeObserver = null;
+
+  const render = () => {
+    const parentWidth = container.parentElement?.clientWidth ?? 320;
+    const width = Math.max(220, Math.min(320, Math.floor(parentWidth)));
+    renderGoogleButton(container, {
+      ...options,
+      width: String(width)
+    });
+  };
+
+  const scheduleRender = () => {
+    window.cancelAnimationFrame(frameId);
+    frameId = window.requestAnimationFrame(render);
+  };
+
+  scheduleRender();
+
+  if (typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver(scheduleRender);
+    if (container.parentElement) {
+      resizeObserver.observe(container.parentElement);
+    }
+  } else {
+    window.addEventListener("resize", scheduleRender);
+  }
+
+  return () => {
+    window.cancelAnimationFrame(frameId);
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+    } else {
+      window.removeEventListener("resize", scheduleRender);
+    }
+  };
+}

@@ -10,7 +10,7 @@ const extractResumeTextFromUpload = require("../utils/extractResumeText");
 const { logActivity } = require("../utils/activityLogger");
 const {
   generateSummary: generateSummaryAI,
-  rewriteResumeWithGemini
+  rewriteResumeWithGroq
 } = require("../utils/geminiService");
 
 function safeUnlink(filePath = "") {
@@ -630,36 +630,38 @@ exports.generateSummary = async (req, res) => {
   try {
     const { resumeText } = req.body;
     const isPremium = req.user?.plan === "premium";
+    const normalizedResumeText = String(resumeText || "").trim();
 
-    if (!resumeText) {
+    if (!normalizedResumeText) {
       return res.status(400).json({
         error: "Resume text missing"
       });
     }
 
-    const summaryResponse = await generateSummaryAI(resumeText, req.user, {
-      priority: isPremium
-    });
-    const fallbackSummary = generateResumeSummary(resumeText);
+    const fallbackSummary = generateResumeSummary(normalizedResumeText);
+    let summaryResponse = fallbackSummary.points;
+
+    try {
+      summaryResponse = await generateSummaryAI(normalizedResumeText, req.user, {
+        priority: isPremium
+      });
+    } catch (aiError) {
+      console.error("SUMMARY AI FALLBACK:", aiError.message);
+    }
+
     const summary = normalizeSummaryPoints(
       summaryResponse,
       fallbackSummary.points
     );
 
-    res.json({
+    return res.json({
       summary,
       certifications: fallbackSummary.certifications
-    });
-
-    await logActivity({
-      type: "ai_analysis_generated",
-      userId: req.user?._id,
-      description: `${req.user?.name || req.user?.email || "A user"} generated an AI summary`
     });
   } catch (error) {
     console.error("SUMMARY ERROR:", error.message);
 
-    res.status(500).json({
+    return res.status(500).json({
       error: error.message || "Failed to generate summary"
     });
   }
@@ -669,25 +671,39 @@ exports.rewriteResume = async (req, res) => {
   try {
     const { resumeText } = req.body;
     const isPremium = req.user?.plan === "premium";
+    const normalizedResumeText = String(resumeText || "").trim();
 
-    if (!String(resumeText || "").trim()) {
+    if (!normalizedResumeText) {
       return res.status(400).json({
-        error: "Resume text missing"
+        success: false,
+        message: "Resume text missing"
       });
     }
 
-    const rewrittenResume = await rewriteResumeWithGemini(String(resumeText).trim(), req.user, {
+    const rewritten = await rewriteResumeWithGroq(normalizedResumeText, req.user, {
       priority: isPremium
     });
 
     return res.json({
-      rewrittenResume
+      success: true,
+      data: rewritten,
+      rewrittenResume: rewritten
     });
   } catch (error) {
-    console.error("RESUME REWRITE ERROR:", error.message);
+    console.error("Rewrite Error:", error.message);
 
-    return res.status(500).json({
-      error: error.message || "Failed to rewrite resume"
+    const message = error.message || "Unable to rewrite resume right now";
+    const statusCode =
+      message === "Invalid resume content"
+        ? 400
+        : message === "GROQ_API_KEY is not configured"
+          ? 500
+          : 500;
+
+    return res.status(statusCode).json({
+      success: false,
+      message,
+      error: message
     });
   }
 };

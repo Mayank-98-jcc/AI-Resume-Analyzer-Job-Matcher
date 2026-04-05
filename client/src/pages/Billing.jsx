@@ -205,10 +205,26 @@ function Billing() {
 
   useEffect(() => {
     if (selectedPlanKey && checkoutRef.current && shouldScrollToCheckoutRef.current) {
-      checkoutRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
+      const scrollContainer = mainRef.current;
+      const topOffset = 28;
+
+      if (scrollContainer) {
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const targetRect = checkoutRef.current.getBoundingClientRect();
+        const nextTop =
+          scrollContainer.scrollTop + targetRect.top - containerRect.top - topOffset;
+
+        scrollContainer.scrollTo({
+          top: Math.max(nextTop, 0),
+          behavior: "smooth"
+        });
+      } else {
+        window.scrollTo({
+          top: Math.max(checkoutRef.current.offsetTop - topOffset, 0),
+          behavior: "smooth"
+        });
+      }
+
       shouldScrollToCheckoutRef.current = false;
     }
   }, [selectedPlanKey]);
@@ -379,33 +395,75 @@ function Billing() {
         >
           <div className="mx-auto max-w-7xl">
             <Motion.section
-              className="rounded-[34px] border border-white/10 bg-white/[0.045] px-6 py-10 text-center shadow-[0_30px_90px_rgba(2,8,23,0.42)] backdrop-blur-xl md:px-10"
+              className="relative overflow-hidden rounded-[38px] border border-white/10 bg-[radial-gradient(circle_at_left,rgba(46,144,255,0.16),transparent_28%),radial-gradient(circle_at_right,rgba(168,85,247,0.18),transparent_30%),linear-gradient(180deg,rgba(15,22,56,0.94),rgba(18,20,62,0.98))] px-6 py-8 text-center shadow-[0_30px_100px_rgba(2,8,23,0.42)] md:px-10 md:py-9"
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05, duration: 0.4 }}
             >
-              <div className="mx-auto max-w-3xl">
-                <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100">
+              <div className="pointer-events-none absolute inset-0 opacity-50 bg-[radial-gradient(circle_at_20%_25%,rgba(255,255,255,0.18),transparent_1.2%),radial-gradient(circle_at_35%_40%,rgba(255,255,255,0.12),transparent_1%),radial-gradient(circle_at_62%_28%,rgba(255,255,255,0.16),transparent_1.1%),radial-gradient(circle_at_78%_38%,rgba(255,255,255,0.12),transparent_1%),radial-gradient(circle_at_88%_20%,rgba(255,255,255,0.14),transparent_1.2%)] [background-size:220px_220px]" />
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_30%,rgba(255,255,255,0.01))]" />
+              <Motion.div
+                className="pointer-events-none absolute inset-x-[12%] top-0 h-28 rounded-full bg-cyan-300/10 blur-3xl"
+                animate={{ x: [-18, 18, -18], opacity: [0.35, 0.6, 0.35] }}
+                transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <div className="relative mx-auto max-w-3xl">
+                <Motion.div
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-2 text-xs font-semibold tracking-[0.18em] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.12, duration: 0.35 }}
+                >
                   <Sparkles size={14} />
-                  ResumeIQ Billing
-                </div>
+                  <span>
+                    Resume
+                    <span className="bg-gradient-to-r from-cyan-300 via-blue-400 to-indigo-400 bg-clip-text text-transparent">
+                      IQ
+                    </span>{" "}
+                    Billing
+                  </span>
+                </Motion.div>
 
-                <h1 className="mt-5 text-4xl font-black tracking-tight text-white md:text-5xl">
+                <Motion.h1
+                  className="mt-4 text-4xl font-black tracking-tight text-white md:text-[3.65rem] md:leading-none"
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.18, duration: 0.38 }}
+                >
                   Choose Your Plan
-                </h1>
-                <p className="mt-4 text-sm leading-7 text-slate-300 md:text-base">
+                </Motion.h1>
+                <Motion.p
+                  className="mt-3 text-sm leading-7 text-slate-300 md:text-[1.08rem]"
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.24, duration: 0.38 }}
+                >
                   Upgrade your ResumeIQ plan to unlock advanced AI features.
-                </p>
+                </Motion.p>
 
-                <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-slate-200">
+                <Motion.div
+                  className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2.5 text-sm text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1, y: [0, -3, 0] }}
+                  transition={{
+                    opacity: { delay: 0.3, duration: 0.3 },
+                    scale: { delay: 0.3, duration: 0.3 },
+                    y: { delay: 0.7, duration: 3.2, repeat: Infinity, ease: "easeInOut" }
+                  }}
+                >
                   <Crown size={16} className="text-cyan-300" />
-                  Current plan: {currentPlanLabel}
-                </div>
+                  Current plan: <span className="font-bold text-white">{currentPlanLabel}</span>
+                </Motion.div>
                 {nextBillingDate && currentPlan !== "free" && (
-                  <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-100">
+                  <Motion.div
+                    className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-100"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.36, duration: 0.35 }}
+                  >
                     <CalendarDays size={16} />
                     Next billing date: {new Date(nextBillingDate).toLocaleDateString()}
-                  </div>
+                  </Motion.div>
                 )}
               </div>
             </Motion.section>
@@ -434,13 +492,13 @@ function Billing() {
                 return (
                   <Motion.article
                     key={plan.key}
-                    className={`group relative overflow-hidden rounded-[28px] border p-8 backdrop-blur-xl transition-all duration-200 ${
+                    className={`group relative overflow-hidden rounded-[30px] border p-8 backdrop-blur-xl transition-all duration-200 ${
                       isPremium
-                        ? "border-amber-200/20 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.16),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.9),rgba(9,16,34,0.98))] shadow-[0_28px_90px_rgba(245,158,11,0.12)]"
-                        : "border-white/10 bg-white/5 shadow-[0_20px_60px_rgba(15,23,42,0.32)]"
+                        ? "border-amber-200/20 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.22),transparent_35%),linear-gradient(180deg,rgba(34,28,30,0.95),rgba(26,25,34,0.98))] shadow-[0_28px_90px_rgba(245,158,11,0.14)]"
+                        : "border-white/10 bg-[linear-gradient(180deg,rgba(34,42,84,0.58),rgba(24,28,70,0.9))] shadow-[0_20px_70px_rgba(15,23,42,0.32)]"
                     } ${
                       isPro
-                        ? "border-cyan-300/35 shadow-[0_25px_80px_rgba(14,165,233,0.18)]"
+                        ? "border-cyan-300/35 bg-[radial-gradient(circle_at_top,rgba(73,250,226,0.22),transparent_30%),linear-gradient(180deg,rgba(26,73,98,0.78),rgba(26,31,78,0.96))] shadow-[0_25px_90px_rgba(14,165,233,0.2)]"
                         : ""
                     }`}
                     initial={{ opacity: 0, y: 24 }}
@@ -449,29 +507,33 @@ function Billing() {
                     whileHover={{ scale: 1.03, y: -6 }}
                     whileTap={{ scale: 1.01 }}
                   >
-                    <div className={`pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b ${plan.accent}`} />
+                    <div className={`pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${plan.accent}`} />
+                    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.05),transparent_30%)]" />
                     {isPremium && (
                       <>
-                        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(251,191,36,0.14),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(34,211,238,0.08),transparent_24%)]" />
-                        <div className="pointer-events-none absolute inset-0 rounded-[28px] ring-1 ring-amber-200/18" />
+                        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(251,191,36,0.16),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(34,211,238,0.08),transparent_24%)]" />
+                        <div className="pointer-events-none absolute inset-0 rounded-[30px] ring-1 ring-amber-200/18" />
                       </>
                     )}
                     {isPro && (
-                      <div className="pointer-events-none absolute inset-0 rounded-[28px] ring-1 ring-cyan-300/25" />
+                      <div className="pointer-events-none absolute inset-0 rounded-[30px] ring-1 ring-cyan-300/28" />
+                    )}
+                    {!isPremium && !isPro && (
+                      <div className="pointer-events-none absolute inset-0 rounded-[30px] ring-1 ring-white/8" />
                     )}
 
                     <div className="relative">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className={`text-sm font-semibold uppercase tracking-[0.22em] ${
-                            isPremium ? "text-amber-100/80" : "text-slate-400"
+                          <p className={`text-sm font-semibold uppercase tracking-[0.28em] ${
+                            isPremium ? "text-amber-100/90" : "text-slate-300/80"
                           }`}>
                             {plan.title}
                           </p>
                           {plan.badge && (
-                            <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold ${
+                            <span className={`mt-4 inline-flex rounded-full px-3.5 py-1.5 text-sm font-bold ${
                               isPremium
-                                ? "bg-gradient-to-r from-amber-200 via-yellow-300 to-cyan-200 text-slate-950 shadow-[0_10px_24px_rgba(251,191,36,0.22)]"
+                                ? "bg-[linear-gradient(135deg,#ffe96a,#ffd43d)] text-slate-950 shadow-[0_10px_24px_rgba(251,191,36,0.22)]"
                                 : "bg-gradient-to-r from-emerald-300 to-cyan-300 text-slate-950"
                             }`}>
                               {plan.badge}
@@ -480,32 +542,38 @@ function Billing() {
                         </div>
 
                         {isCurrent && (
-                          <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+                          <span className="rounded-full border border-emerald-300/20 bg-emerald-400/12 px-4 py-1.5 text-sm font-semibold text-emerald-200">
                             Active
                           </span>
                         )}
                       </div>
 
                       <div className="mt-8">
-                        <p className={`text-5xl font-black tracking-tight ${isPremium ? "text-amber-50" : "text-white"}`}>
-                          ₹{plan.price}
-                          <span className={`ml-2 text-lg font-semibold ${isPremium ? "text-amber-100/65" : "text-slate-400"}`}>
-                            / {plan.period}
+                        <div className="flex items-end gap-3">
+                          <p className={`text-[4rem] font-black tracking-tight leading-none sm:text-[4.15rem] ${isPremium ? "text-amber-50" : "text-white"}`}>
+                            ₹{plan.price}
+                          </p>
+                          <span
+                            className={`pb-2 text-[1.15rem] font-semibold leading-none ${
+                              isPremium ? "text-amber-100/75" : "text-slate-300"
+                            }`}
+                          >
+                            /month
                           </span>
-                        </p>
-                        <p className={`mt-4 min-h-[56px] text-sm leading-7 ${isPremium ? "text-slate-200" : "text-slate-300"}`}>
+                        </div>
+                        <p className={`mt-5 min-h-[84px] text-[1.02rem] leading-9 ${isPremium ? "text-slate-200" : "text-slate-300"}`}>
                           {plan.description}
                         </p>
                       </div>
 
                       <div className="mt-8">
-                        <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${isPremium ? "text-amber-100/45" : "text-slate-500"}`}>
+                        <p className={`text-xs font-semibold uppercase tracking-[0.28em] ${isPremium ? "text-amber-100/45" : "text-slate-500"}`}>
                           Included
                         </p>
                         <div className="mt-4 space-y-3">
                           {plan.available.map((feature) => (
-                            <div key={feature} className={`flex items-center gap-3 text-sm ${isPremium ? "text-amber-50" : "text-slate-100"}`}>
-                              <Check size={17} className={`shrink-0 ${isPremium ? "text-amber-200" : "text-emerald-300"}`} />
+                            <div key={feature} className={`flex items-center gap-3 text-[1.02rem] ${isPremium ? "text-amber-50" : "text-slate-100"}`}>
+                              <Check size={18} className={`shrink-0 ${isPremium ? "text-amber-200" : "text-emerald-300"}`} />
                               <span>{feature}</span>
                             </div>
                           ))}
@@ -514,12 +582,12 @@ function Billing() {
 
                       {plan.locked.length > 0 && (
                         <div className="mt-8 border-t border-white/10 pt-6">
-                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
                             Locked
                           </p>
                           <div className="mt-4 space-y-3">
                             {plan.locked.map((feature) => (
-                              <div key={feature} className="flex items-center gap-3 text-sm text-slate-400">
+                              <div key={feature} className="flex items-center gap-3 text-[1.02rem] text-slate-400">
                                 <X size={17} className="shrink-0 text-rose-300" />
                                 <span>{feature}</span>
                               </div>
@@ -532,12 +600,12 @@ function Billing() {
                         type="button"
                         onClick={() => !isCurrent && plan.key !== "free" && openCheckout(plan.key)}
                         disabled={plan.key === "free" || isCurrent || Boolean(loadingPlan)}
-                        className={`mt-10 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${
+                        className={`mt-10 inline-flex w-full items-center justify-center gap-2 rounded-[18px] px-5 py-4 text-[1.02rem] font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${
                           isPremium
-                            ? "bg-[linear-gradient(135deg,#fde68a_0%,#fbbf24_32%,#67e8f9_100%)] text-slate-950 shadow-[0_18px_38px_rgba(251,191,36,0.22)] hover:shadow-[0_24px_44px_rgba(251,191,36,0.28)]"
+                            ? "bg-[linear-gradient(135deg,#ffd955_0%,#facc15_34%,#d9f99d_100%)] text-slate-950 shadow-[0_18px_38px_rgba(251,191,36,0.22)] hover:shadow-[0_24px_44px_rgba(251,191,36,0.28)]"
                             : isPro
-                            ? "bg-gradient-to-r from-sky-400 via-cyan-400 to-blue-500 text-white shadow-[0_14px_34px_rgba(14,165,233,0.28)] hover:shadow-[0_20px_40px_rgba(14,165,233,0.34)]"
-                            : "border border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.12]"
+                            ? "bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500 text-white shadow-[0_14px_34px_rgba(14,165,233,0.28)] hover:shadow-[0_20px_40px_rgba(14,165,233,0.34)]"
+                            : "border border-white/10 bg-white/[0.06] text-slate-200 hover:bg-white/[0.12]"
                         }`}
                       >
                         {loadingPlan === plan.key ? (
@@ -562,45 +630,47 @@ function Billing() {
             {selectedPlan && (
               <Motion.section
                 ref={checkoutRef}
-                className="mt-8 overflow-hidden rounded-[32px] border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] shadow-[0_30px_100px_rgba(15,23,42,0.45)] backdrop-blur-xl"
+                className="relative mt-8 overflow-hidden rounded-[36px] border border-cyan-200/10 bg-[radial-gradient(circle_at_top_right,rgba(72,187,255,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(40,255,214,0.08),transparent_22%),linear-gradient(135deg,#161b47_0%,#18153d_36%,#131a47_100%)] shadow-[0_30px_120px_rgba(2,8,23,0.48)]"
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35 }}
               >
-                <div className="grid grid-cols-1 gap-0 xl:grid-cols-[1.1fr_0.9fr]">
-                  <div className="relative border-b border-white/10 p-6 sm:p-8 xl:border-b-0 xl:border-r">
-                    <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-r from-emerald-300/25 via-cyan-300/12 to-transparent" />
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_28%)]" />
+                <div className="relative grid grid-cols-1 gap-0 xl:grid-cols-[1.14fr_0.86fr]">
+                  <div className="relative border-b border-white/8 p-6 sm:p-8 xl:border-b-0 xl:border-r xl:border-white/8 xl:p-10">
                     <div className="relative">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
                         <div>
-                          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-100">
+                          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200/10 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-100 shadow-[0_8px_24px_rgba(34,211,238,0.08)]">
                             <Sparkles size={14} />
                             ResumeIQ Checkout
                           </div>
-                          <h2 className="mt-4 text-3xl font-black tracking-tight text-white">
+                          <h2 className="mt-6 text-[2.35rem] font-black tracking-tight text-white sm:text-[2.85rem] sm:leading-[1.08]">
                             Complete your {selectedPlan.title} upgrade
                           </h2>
-                          <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">
-                            Choose any payment mode you prefer. The final payment is securely handled by Razorpay,
-                            while this checkout keeps the look aligned with your ResumeIQ billing theme.
+                          <p className="mt-4 max-w-2xl text-[0.98rem] leading-8 text-slate-200/90">
+                            Choose any payment mode you prefer to complete your {selectedPlan.title} Plan upgrade.
+                          </p>
+                          <p className="mt-1 max-w-2xl text-[0.98rem] leading-8 text-slate-300/85">
+                            Your payment will be securely processed by Razorpay.
                           </p>
                         </div>
 
                         <button
                           type="button"
                           onClick={() => setSelectedPlanKey("")}
-                          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+                          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.07]"
                         >
                           Back to Plans
                         </button>
                       </div>
 
-                      <div className="mt-8">
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      <div className="mt-10">
+                        <p className="text-xs font-semibold uppercase tracking-[0.34em] text-slate-400/75">
                           Payment Method
                         </p>
 
-                        <div className="mt-4 space-y-3">
+                        <div className="mt-5 space-y-4">
                           {PAYMENT_METHODS.map((method) => {
                             const Icon = method.icon;
                             const isSelected = selectedMethod === method.key;
@@ -610,17 +680,17 @@ function Billing() {
                                 key={method.key}
                                 type="button"
                                 onClick={() => setSelectedMethod(method.key)}
-                                className={`flex w-full items-center justify-between rounded-[22px] border px-4 py-4 text-left transition-all duration-300 ${
+                                className={`flex w-full items-center justify-between rounded-[24px] border px-4 py-4 text-left transition-all duration-300 ${
                                   isSelected
-                                    ? "border-emerald-300/45 bg-emerald-400/[0.08] shadow-[0_16px_34px_rgba(34,197,94,0.10)]"
-                                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
+                                    ? "border-cyan-300/55 bg-[linear-gradient(90deg,rgba(94,234,212,0.14),rgba(56,189,248,0.08))] shadow-[0_18px_38px_rgba(45,212,191,0.08)]"
+                                    : "border-white/10 bg-white/[0.02] hover:bg-white/[0.05]"
                                 }`}
                               >
                                 <div className="flex items-center gap-4">
-                                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                                  <div className={`flex h-12 w-12 items-center justify-center rounded-[18px] ${
                                     isSelected
-                                      ? "bg-emerald-400/15 text-emerald-200"
-                                      : "bg-white/[0.06] text-slate-300"
+                                      ? "bg-cyan-300/14 text-cyan-100"
+                                      : "bg-white/[0.05] text-slate-300"
                                   }`}>
                                     <Icon size={20} />
                                   </div>
@@ -634,12 +704,16 @@ function Billing() {
                                         </span>
                                       )}
                                     </div>
-                                    <p className="mt-1 text-xs text-slate-400">{method.meta}</p>
+                                    <p className="mt-1 text-sm text-slate-400">{method.meta}</p>
                                   </div>
                                 </div>
 
                                 <div className="flex items-center gap-3">
-                                  {isSelected && <CircleDot size={16} className="text-emerald-200" />}
+                                  {isSelected ? (
+                                    <span className="flex h-5 w-5 items-center justify-center rounded-full border border-cyan-200 text-cyan-100">
+                                      <CircleDot size={12} />
+                                    </span>
+                                  ) : null}
                                   <ChevronRight size={18} className="text-slate-500" />
                                 </div>
                               </button>
@@ -648,104 +722,125 @@ function Billing() {
                         </div>
                       </div>
 
-                      <div className="mt-8 rounded-[26px] border border-white/10 bg-slate-950/35 p-5">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-200">
-                            <ShieldCheck size={20} />
+                      <div className="mt-6 rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(16,22,58,0.94),rgba(16,20,52,0.98))] px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_18px_40px_rgba(2,8,23,0.22)]">
+                        <div className="flex items-start gap-5">
+                          <div className="mt-1 flex h-[88px] w-[88px] shrink-0 items-center justify-center rounded-[26px] bg-[linear-gradient(180deg,rgba(36,51,103,0.95),rgba(20,30,72,0.98))] text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                            <ShieldCheck size={34} strokeWidth={2.1} />
                           </div>
-                          <div>
-                            <h3 className="text-sm font-semibold text-white">Security and privacy</h3>
-                            <p className="text-xs leading-6 text-slate-400">
-                              Your card, UPI or banking details are completed inside Razorpay’s secure checkout.
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-[1.75rem] font-semibold tracking-[-0.02em] text-white">Security &amp; privacy</h3>
+                            <p className="mt-2 text-[0.98rem] leading-8 text-slate-300">
+                              Supports Visa, Mastercard, RuPay, Amex, UPI, cards, wallets, and net banking
+                              <span className="ml-2 text-cyan-200">→</span>
                             </p>
+                            <div className="mt-5 flex flex-wrap items-center gap-4 text-lg font-semibold text-slate-200/95">
+                              <span className="text-[1.02rem] font-black italic tracking-[-0.04em] text-[#2E86FF]">VISA</span>
+                              <span className="text-white/20">|</span>
+                              <span className="flex items-center gap-2">
+                                <span className="h-8 w-8 rounded-full bg-[#EB001B] opacity-95" />
+                                <span className="-ml-4 h-8 w-8 rounded-full bg-[#F79E1B] opacity-95" />
+                              </span>
+                              <span className="text-white/20">|</span>
+                              <span className="text-[0.98rem] font-semibold text-slate-200">RuPay</span>
+                              <span className="text-white/20">|</span>
+                              <span className="text-[1.02rem] font-semibold tracking-[-0.02em] text-slate-200">Amex</span>
+                              <span className="rounded-[4px] bg-[#1F57D6] px-2 py-1 text-[0.72rem] font-bold tracking-[0.06em] text-white">
+                                AUTOPAY
+                              </span>
+                              <span className="rounded-[4px] bg-[#1E88D9] px-2.5 py-1 text-[0.82rem] font-bold text-white">
+                                BHIM
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="relative p-6 sm:p-8">
-                    <div className="absolute right-0 top-0 h-36 w-36 rounded-full bg-emerald-300/10 blur-3xl" />
-                    <div className="relative">
-                      <div className="rounded-[28px] border border-white/10 bg-slate-950/45 p-6 shadow-[0_18px_60px_rgba(2,8,23,0.3)]">
+                  <div className="relative p-6 sm:p-8 xl:p-8">
+                    <div className="relative h-full rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(11,18,51,0.8),rgba(10,15,42,0.92))] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-7">
+                      <div className="pointer-events-none absolute inset-0 rounded-[32px] ring-1 ring-cyan-200/5" />
+                      <div className="relative">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
                               Order Summary
                             </p>
-                            <h3 className="mt-3 text-2xl font-bold text-white">{selectedPlan.title} Plan</h3>
-                            <p className="mt-2 text-sm leading-6 text-slate-300">
+                            <h3 className="mt-4 text-[1.85rem] font-bold leading-none text-white">{selectedPlan.title} Plan</h3>
+                            <p className="mt-4 max-w-md text-[0.98rem] leading-8 text-slate-300">
                               {selectedPlan.description}
                             </p>
                           </div>
-                          <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm font-semibold text-emerald-100">
+                          <div className="rounded-full border border-cyan-200/12 bg-cyan-300/8 px-4 py-2 text-sm font-semibold text-emerald-100">
                             Monthly
                           </div>
                         </div>
 
-                        <div className="mt-6 space-y-4">
-                          <div className="flex items-center justify-between text-sm text-slate-300">
+                        <div className="mt-6 border-t border-white/10 pt-5">
+                          <div className="space-y-5">
+                            <div className="flex items-center justify-between text-sm text-slate-300">
                             <span>Plan price</span>
                             <span className="font-semibold text-white">₹{selectedPlan.price}.00</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm text-slate-300">
+                              <span>Platform fee</span>
+                              <span className="font-semibold text-slate-100">Included</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm text-slate-300">
+                              <span>Selected payment mode</span>
+                              <span className="font-semibold text-white">{selectedMethodData.label}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between text-sm text-slate-300">
-                            <span>Platform fee</span>
-                            <span className="font-semibold text-emerald-200">Included</span>
-                          </div>
-                          <div className="flex items-center justify-between text-sm text-slate-300">
-                            <span>Selected payment mode</span>
-                            <span className="font-semibold text-white">{selectedMethodData.label}</span>
-                          </div>
-                          <div className="border-t border-dashed border-white/10 pt-4">
+                          <div className="mt-6 border-t border-white/10 pt-5">
                             <div className="flex items-center justify-between">
-                              <span className="text-base font-semibold text-slate-100">Total</span>
-                              <span className="text-3xl font-black tracking-tight text-emerald-200">
+                              <span className="text-[1.05rem] font-semibold text-white">Total</span>
+                              <span className="text-[3.25rem] font-black tracking-tight text-emerald-200">
                                 ₹{selectedPlan.price}
                               </span>
                             </div>
-                            <p className="mt-2 text-xs text-slate-400">
+                            <p className="mt-2 text-sm leading-7 text-slate-400">
                               30-day access window. Renewal is manual in the current flow.
                             </p>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.04] p-6">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          What you unlock today
-                        </p>
-                        <div className="mt-4 space-y-3">
-                          {selectedPlan.available.map((feature) => (
-                            <div key={feature} className="flex items-center gap-3 text-sm text-slate-100">
-                              <Check size={16} className="text-emerald-300" />
-                              <span>{feature}</span>
-                            </div>
-                          ))}
+                        <div className="mt-6 border-t border-white/10 pt-6">
+                          <p className="text-[1rem] font-semibold text-slate-200">
+                            What's included:
+                          </p>
+                          <div className="mt-5 space-y-4">
+                            {selectedPlan.available.map((feature) => (
+                              <div key={feature} className="flex items-center gap-3 text-[0.98rem] text-slate-100">
+                                <Check size={16} className="text-emerald-300" />
+                                <span>{feature}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUpgrade(selectedPlan.key)}
+                          disabled={Boolean(loadingPlan)}
+                          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-[22px] bg-gradient-to-r from-emerald-400 via-green-400 to-cyan-400 px-5 py-4 text-[1.65rem] font-bold text-slate-950 shadow-[0_18px_44px_rgba(34,197,94,0.22)] transition-all duration-300 hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          {loadingPlan === selectedPlan.key ? (
+                            <>
+                              <LoaderCircle size={18} className="animate-spin" />
+                              Opening Razorpay
+                            </>
+                          ) : (
+                            <>
+                              Pay Now
+                              <ChevronRight size={18} />
+                            </>
+                          )}
+                        </button>
+
+                        <p className="mt-3 text-center text-sm leading-7 text-slate-400">
+                          Supports UPI, cards, wallets, net banking and other modes shown above
+                        </p>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleUpgrade(selectedPlan.key)}
-                        disabled={Boolean(loadingPlan)}
-                        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-[22px] bg-gradient-to-r from-emerald-400 via-green-400 to-cyan-400 px-5 py-4 text-sm font-bold text-slate-950 shadow-[0_18px_40px_rgba(34,197,94,0.24)] transition-all duration-300 hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {loadingPlan === selectedPlan.key ? (
-                          <>
-                            <LoaderCircle size={17} className="animate-spin" />
-                            Opening Razorpay
-                          </>
-                        ) : (
-                          <>
-                            Pay Now
-                            <ChevronRight size={17} />
-                          </>
-                        )}
-                      </button>
-
-                      <p className="mt-3 text-center text-xs text-slate-400">
-                        Supports UPI, cards, wallets, net banking and other modes shown inside Razorpay checkout.
-                      </p>
                     </div>
                   </div>
                 </div>

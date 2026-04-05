@@ -151,12 +151,12 @@ function ForgotPassword() {
   };
 
   return (
-    <div className="login-shell min-h-screen flex items-center justify-center p-6 text-white">
+    <div className="login-shell auth-shell min-h-screen flex items-center justify-center p-4 text-white sm:p-6">
       <div className="login-blob login-blob--one" />
       <div className="login-blob login-blob--two" />
       <div className="login-blob login-blob--three" />
 
-      <div className={`login-card auth-route-card w-full max-w-md p-8 sm:p-10 ${isRouteSwitching ? "is-route-flipping" : ""}`}>
+      <div className={`login-card auth-route-card auth-card w-full max-w-md p-5 sm:p-8 md:p-10 ${isRouteSwitching ? "is-route-flipping" : ""}`}>
         <BrandMark compact center />
 
         <h2 className="text-3xl font-bold text-center tracking-tight">Forgot Password</h2>

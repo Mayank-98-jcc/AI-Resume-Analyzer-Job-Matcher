@@ -19,6 +19,7 @@ import {
   Crown,
   FileSearch,
   FileText,
+  MessageSquareMore,
   Search,
   Sparkles,
   Users
@@ -86,6 +87,7 @@ function AdminDashboard() {
     resumeUploads: [],
     plans: { free: 0, pro: 0, premium: 0 }
   });
+  const [feedback, setFeedback] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -94,18 +96,26 @@ function AdminDashboard() {
       try {
         setLoading(true);
         setError("");
-        const [statsRes, usersRes, resumesRes, analyticsRes] = await Promise.all([
+        const [statsRes, usersRes, resumesRes, analyticsRes, feedbackRes] = await Promise.all([
           API.get("/admin/stats"),
           API.get("/admin/users"),
           API.get("/admin/resumes"),
-          API.get("/admin/analytics")
+          API.get("/admin/analytics"),
+          API.get("/admin/feedback", { params: { limit: 8 } })
         ]);
         setStats(statsRes.data || {});
         setUsers(Array.isArray(usersRes.data?.data) ? usersRes.data.data : []);
-        setResumes(Array.isArray(resumesRes.data) ? resumesRes.data : []);
+        setResumes(Array.isArray(resumesRes.data?.data) ? resumesRes.data.data : []);
         setAnalytics(
           analyticsRes.data || { userGrowth: [], resumeUploads: [], plans: { free: 0, pro: 0, premium: 0 } }
         );
+        setFeedback(Array.isArray(feedbackRes.data?.data) ? feedbackRes.data.data : []);
+
+        if ((feedbackRes.data?.meta?.unreadCount || 0) > 0) {
+          API.patch("/admin/feedback/read").catch((markError) => {
+            console.error("Admin feedback mark read error:", markError);
+          });
+        }
       } catch (fetchError) {
         console.error("Admin dashboard fetch error:", fetchError);
         setError(fetchError?.response?.data?.message || "Unable to load admin dashboard right now.");
@@ -155,6 +165,7 @@ function AdminDashboard() {
 
   const previewUsers = useMemo(() => users.slice(0, 5), [users]);
   const previewResumes = useMemo(() => resumes.slice(0, 5), [resumes]);
+  const previewFeedback = useMemo(() => feedback.slice(0, 8), [feedback]);
 
   return (
     <AdminLayout
@@ -502,6 +513,81 @@ function AdminDashboard() {
           </div>
         </Motion.section>
       </div>
+
+      <Motion.section
+        id="feedback-section"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut", delay: 0.05 }}
+        className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-[0_18px_40px_rgba(2,6,23,0.5)] backdrop-blur-xl"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-100">
+              <MessageSquareMore size={20} />
+            </span>
+            <div>
+              <p className="text-base font-semibold text-white">User Feedback</p>
+              <p className="text-sm text-slate-300">Latest messages from users, sorted by newest first.</p>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-2 text-sm text-slate-200">
+            Showing: <span className="font-semibold text-white">{previewFeedback.length}</span>
+          </div>
+        </div>
+
+        <div className="mt-5 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+          {loading
+            ? Array.from({ length: 4 }).map((_, idx) => (
+                <div key={`feedback-skel-${idx}`} className="rounded-3xl border border-white/10 bg-slate-950/20 p-4">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="mt-3 h-3.5 w-28" />
+                  <Skeleton className="mt-4 h-16 w-full" />
+                </div>
+              ))
+            : previewFeedback.map((item) => (
+                <Motion.article
+                  key={item._id}
+                  layout
+                  initial={item.isRead ? false : { opacity: 0, y: 10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  className={`rounded-3xl border p-4 transition ${
+                    item.isRead
+                      ? "border-white/10 bg-slate-950/20"
+                      : "border-cyan-300/20 bg-cyan-300/[0.06] shadow-[0_18px_40px_rgba(34,211,238,0.08)]"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className={`text-sm ${item.isRead ? "font-medium text-slate-200" : "font-semibold text-white"}`}>
+                        {item.email || item.userName || "Unknown user"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {new Date(item.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                      item.isRead
+                        ? "border-white/10 bg-white/5 text-slate-300"
+                        : "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
+                    }`}>
+                      {item.category}
+                    </span>
+                  </div>
+
+                  <p className={`mt-4 text-sm leading-6 ${item.isRead ? "text-slate-300" : "text-slate-100"}`}>
+                    {item.message}
+                  </p>
+                </Motion.article>
+              ))}
+
+          {!loading && previewFeedback.length === 0 ? (
+            <div className="rounded-3xl border border-white/10 bg-slate-950/20 px-4 py-10 text-center text-sm text-slate-400">
+              No feedback has been submitted yet.
+            </div>
+          ) : null}
+        </div>
+      </Motion.section>
 
       <div className="grid gap-4 md:grid-cols-2">
         <button

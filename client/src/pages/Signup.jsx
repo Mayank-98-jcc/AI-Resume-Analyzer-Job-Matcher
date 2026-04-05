@@ -2,7 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import BrandMark from "../components/BrandMark";
-import { ensureGoogleIdentityInitialized, renderGoogleButton, waitForGoogleIdentity } from "../utils/googleIdentity";
+import {
+  ensureGoogleIdentityInitialized,
+  mountResponsiveGoogleButton,
+  waitForGoogleIdentity
+} from "../utils/googleIdentity";
 
 function Signup() {
   const navigate = useNavigate();
@@ -103,6 +107,7 @@ function Signup() {
     if (!googleClientId) return;
 
     let cancelled = false;
+    let cleanupGoogleButton = () => {};
 
     const handler = async (response) => {
       try {
@@ -134,13 +139,12 @@ function Signup() {
 
         ensureGoogleIdentityInitialized(googleClientId);
 
-        renderGoogleButton(googleButtonRef.current, {
+        cleanupGoogleButton = mountResponsiveGoogleButton(googleButtonRef.current, {
           type: "standard",
           theme: "outline",
           text: "continue_with",
           shape: "pill",
-          size: "large",
-          width: "320"
+          size: "large"
         });
       } catch {
         if (!cancelled) {
@@ -153,6 +157,7 @@ function Signup() {
 
     return () => {
       cancelled = true;
+      cleanupGoogleButton();
       if (globalThis.__resumeiq_gsi_onCredential === handler) {
         globalThis.__resumeiq_gsi_onCredential = null;
       }
@@ -285,12 +290,12 @@ function Signup() {
   }, [emailValue, emailValid, emailVerified]);
 
   return (
-    <div className="login-shell min-h-screen flex items-center justify-center p-6 text-white">
+    <div className="login-shell auth-shell min-h-screen flex items-center justify-center p-4 text-white sm:p-6">
       <div className="login-blob login-blob--one" />
       <div className="login-blob login-blob--two" />
       <div className="login-blob login-blob--three" />
 
-      <div className={`login-card auth-route-card w-full max-w-md p-8 sm:p-10 ${isRouteSwitching ? "is-route-flipping" : ""}`}>
+      <div className={`login-card auth-route-card auth-card w-full max-w-md p-5 sm:p-8 md:p-10 ${isRouteSwitching ? "is-route-flipping" : ""}`}>
         <BrandMark compact center />
 
         <h2 className="text-3xl font-bold text-center tracking-tight">Create Account</h2>
@@ -319,7 +324,7 @@ function Signup() {
 
           <div>
             <label className="block text-sm font-medium mb-2" htmlFor="email">Email</label>
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <input
                 id="email"
                 type="email"
@@ -334,7 +339,7 @@ function Signup() {
                 type="button"
                 onClick={handleSendOtp}
                 disabled={!emailValid || isSendingOtp || emailVerified}
-                className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 {isSendingOtp ? "Sending..." : emailVerified ? "Verified" : "Send OTP"}
               </button>
@@ -351,7 +356,7 @@ function Signup() {
           {showOtpInput && (
             <div>
               <label className="block text-sm font-medium mb-2" htmlFor="otp">OTP</label>
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <input
                   id="otp"
                   inputMode="numeric"
@@ -364,7 +369,7 @@ function Signup() {
                   type="button"
                   onClick={handleVerifyOtp}
                   disabled={String(otp).trim().length !== 6 || isVerifyingOtp}
-                  className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {isVerifyingOtp ? "Verifying..." : "Verify"}
                 </button>
@@ -464,7 +469,7 @@ function Signup() {
           </button>
 
           {googleClientId ? (
-            <div className="flex justify-center">
+            <div className="auth-google-wrap flex justify-center">
               <div ref={googleButtonRef} />
             </div>
           ) : null}

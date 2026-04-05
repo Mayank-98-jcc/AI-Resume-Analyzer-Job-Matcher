@@ -1,0 +1,42 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#ffffff",
+    "primaryColor": "#ffffff",
+    "primaryTextColor": "#111827",
+    "primaryBorderColor": "#111827",
+    "lineColor": "#111827",
+    "secondaryColor": "#ffffff",
+    "tertiaryColor": "#ffffff"
+  },
+  "flowchart": {
+    "nodeSpacing": 70,
+    "rankSpacing": 80,
+    "curve": "linear",
+    "useMaxWidth": true
+  }
+}}%%
+flowchart LR
+  %% ResumeIQ Level 0 DFD
+  %% Context diagram style for documentation
+
+  USER[USER]
+  RESUMEIQ((ResumeIQ))
+  ADMIN[ADMIN]
+
+  USER -->|Login / Signup| RESUMEIQ
+  USER -->|Upload Resume| RESUMEIQ
+  USER -->|Payment / Upgrade Request| RESUMEIQ
+  RESUMEIQ -->|Analysis Result / Suggestions| USER
+  RESUMEIQ -->|History / Support Response| USER
+
+  ADMIN -->|Manage Users and Resumes| RESUMEIQ
+  ADMIN -->|Review Payments and Feedback| RESUMEIQ
+  RESUMEIQ -->|Reports / Analytics| ADMIN
+  RESUMEIQ -->|User and Resume Data| ADMIN
+
+  classDef entity fill:#ffffff,stroke:#111827,color:#111827,stroke-width:1.5px;
+  classDef process fill:#ffffff,stroke:#111827,color:#111827,stroke-width:2px;
+
+  class USER,ADMIN entity;
+  class RESUMEIQ process;
